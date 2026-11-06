@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Icône de l'appli : vaporisateur blanc + étincelle jaune, sur fond turquoise.
+       Le tampon rond en bas à droite = ma signature (commune à mes applis). -->
+  <rect width="100" height="100" rx="22" fill="#5DCAA5"/>
+  <g stroke="#111" stroke-width="5" stroke-linejoin="round" transform="translate(-5 0)">
+    <path d="M60 38V26H40l-9 6h9v6z" fill="#fff"/>
+    <rect x="42" y="38" width="14" height="10" fill="#fff"/>
+    <path d="M35 52a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4v28a4 4 0 0 1-4 4H39a4 4 0 0 1-4-4z" fill="#fff"/>
+    <rect x="35" y="60" width="28" height="11" fill="#85B7EB"/>
+  </g>
+  <path d="M19 9l3.5 9.5L32 22l-9.5 3.5L19 35l-3.5-9.5L6 22l9.5-3.5z" fill="#FAC775" stroke="#111" stroke-width="3.5" stroke-linejoin="round"/>
+  <circle cx="78" cy="78" r="13" fill="#111"/>
+  <circle cx="78" cy="78" r="9" fill="none" stroke="#FAC775" stroke-width="2" stroke-dasharray="3 2"/>
+  <circle cx="78" cy="78" r="3" fill="#FAC775"/>
+</svg>

@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Clean to go</title>
+  <meta name="description" content="Suivi du ménage : chaque tâche revient tous les X jours.">
+  <!-- Couleur de la barre du téléphone (mise à jour par le script ci-dessous) -->
+  <meta name="theme-color" content="#f4f3ee">
+  <script>
+    // Thème choisi sur cet appareil (Réglages → Thème) : auto, clair ou sombre.
+    // On l'applique AVANT l'affichage de la page, pour éviter un « flash » blanc.
+    (function () {
+      var choix = "auto";
+      try { choix = (JSON.parse(localStorage.getItem("clean-feeling")) || {}).theme || "auto"; } catch (e) {}
+      var sombreTel = matchMedia("(prefers-color-scheme: dark)");
+      function appliquer() {
+        var theme = choix === "auto" ? (sombreTel.matches ? "sombre" : "clair") : choix;
+        document.documentElement.dataset.theme = theme;
+        document.querySelector('meta[name="theme-color"]').content = theme === "sombre" ? "#171c24" : "#f4f3ee";
+      }
+      appliquer();
+      sombreTel.addEventListener("change", appliquer);
+      window.appliquerTheme = function (nouveau) { choix = nouveau; appliquer(); };
+    })();
+  </script>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icones/icone.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icones/icone-192.png">
+  <link rel="preload" href="polices/space-grotesk-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="polices/jetbrains-mono-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- Les icônes viennent de la planche icones/tabler.svg :
+     <svg class="ic"><use href="icones/tabler.svg#nom"></use></svg> -->
+
+<!-- ============ ÉCRAN DE CONNEXION ============ -->
+<section id="ecran-connexion" class="ecran" hidden>
+  <div class="connexion">
+    <img src="icones/icone.svg" alt="" width="64" height="64">
+    <h1>Clean to go</h1>
+    <p class="discret">Le ménage, sans y penser.</p>
+    <button id="btn-connexion" class="btn-principal coul-turquoise">Se connecter avec Google</button>
+    <p id="connexion-erreur" class="erreur" hidden></p>
+  </div>
+</section>
+
+<!-- ============ ÉCRAN PRINCIPAL : À faire / Pièces ============ -->
+<section id="ecran-accueil" class="ecran" hidden>
+  <header class="barre coul-turquoise">
+    <h1 class="titre">Clean to go</h1>
+    <button id="btn-recherche" class="btn-icone" aria-label="Rechercher"><svg class="ic"><use href="icones/tabler.svg#search"></use></svg></button>
+    <button id="btn-pause" class="btn-icone" aria-label="Pause"><svg class="ic"><use href="icones/tabler.svg#player-pause"></use></svg></button>
+    <!-- Mode « modifier » : fait apparaître l'ajout et les croix -->
+    <button class="btn-icone btn-ranger" data-ranger="modifier" aria-label="Modifier"></button>
+    <button class="btn-icone" data-aller="reglages" aria-label="Réglages"><svg class="ic"><use href="icones/tabler.svg#settings"></use></svg></button>
+  </header>
+  <!-- Bandeau visible seulement pendant une pause (vacances) -->
+  <div id="bandeau-pause" class="bandeau-pause" hidden>
+    <span id="pause-texte"></span>
+    <button id="btn-reprendre" class="btn-principal coul-jaune"><svg class="ic"><use href="icones/tabler.svg#player-play"></use></svg>Reprendre</button>
+  </div>
+  <!-- Jauge « maison propre à X % » : la vie totale de la maison -->
+  <div class="jauge">
+    <svg class="ic"><use href="icones/tabler.svg#home"></use></svg>
+    <span class="jauge-barre"><i id="jauge-remplie"></i></span>
+    <span id="jauge-pct" class="mono"></span>
+  </div>
+  <div class="onglets">
+    <button data-vue="afaire">À faire</button>
+    <button data-vue="pieces">Pièces</button>
+  </div>
+  <div id="zone-recherche" class="zone-recherche" hidden>
+    <input id="recherche" type="search" placeholder="Chercher une tâche ou une pièce" aria-label="Rechercher" autocomplete="off">
+  </div>
+  <div id="liste-taches" class="aff-cadres"></div>
+</section>
+
+<!-- ============ RÉGLAGES ============ -->
+<section id="ecran-reglages" class="ecran" hidden>
+  <header class="barre coul-gris">
+    <button class="btn-icone" data-retour aria-label="Retour"><svg class="ic"><use href="icones/tabler.svg#arrow-left"></use></svg></button>
+    <h1 class="titre">Réglages</h1>
+  </header>
+
+  <h2 class="section"><span>Pièces</span><span id="nb-pieces"></span></h2>
+  <button class="ligne-ajout ligne-lien" data-aller="pieces"><svg class="ic"><use href="icones/tabler.svg#door"></use></svg>Voir mes pièces<svg class="ic fleche-droite"><use href="icones/tabler.svg#chevron-right"></use></svg></button>
+
+  <h2 class="section"><span>Ressenti</span><span>CET APPAREIL</span></h2>
+  <button class="ligne-ajout ligne-lien" data-aller="theme"><span class="nom">Thème</span><span id="theme-actuel" class="valeur"></span><svg class="ic"><use href="icones/tabler.svg#chevron-right"></use></svg></button>
+  <div class="ligne-choix">
+    <span class="nom">Animations</span>
+    <div id="choix-animations" class="segments">
+      <button data-anim-choix="completes">Complètes</button>
+      <button data-anim-choix="simples">Simples</button>
+    </div>
+  </div>
+  <div id="reglages-feeling">
+    <button class="interrupteur" data-feeling="vibration" id="ligne-vibration"><svg class="ic"><use href="icones/tabler.svg#device-mobile-vibration"></use></svg><span class="nom">Vibration</span><span class="bascule"></span></button>
+    <button class="interrupteur" data-feeling="son"><svg class="ic"><use href="icones/tabler.svg#volume"></use></svg><span class="nom">Son</span><span class="bascule"></span></button>
+  </div>
+
+  <h2 class="section"><span>Sauvegarde Excel</span></h2>
+  <div class="boutons">
+    <button id="btn-export" class="btn"><svg class="ic"><use href="icones/tabler.svg#download"></use></svg>Exporter</button>
+    <button id="btn-import" class="btn"><svg class="ic"><use href="icones/tabler.svg#upload"></use></svg>Importer</button>
+    <input id="fichier-import" type="file" accept=".xlsx" hidden>
+  </div>
+
+  <h2 class="section"><span>Compte</span></h2>
+  <div class="ligne-choix">
+    <span class="synchro" title="Synchronisation"><svg class="ic"><use href="icones/tabler.svg#cloud-check"></use></svg></span>
+    <span id="synchro-texte" class="nom"></span>
+  </div>
+  <p id="compte-info" class="aide"></p>
+  <div class="boutons">
+    <button id="btn-deconnexion" class="btn"><svg class="ic"><use href="icones/tabler.svg#logout"></use></svg>Se déconnecter</button>
+  </div>
+
+  <p class="version">Clean to go · <span id="version"></span></p>
+</section>
+
+<!-- ============ THÈME (ouvert depuis Réglages) ============ -->
+<section id="ecran-theme" class="ecran" hidden>
+  <header class="barre coul-gris">
+    <button class="btn-icone" data-retour aria-label="Retour"><svg class="ic"><use href="icones/tabler.svg#arrow-left"></use></svg></button>
+    <h1 class="titre">Thème</h1>
+  </header>
+  <div id="choix-theme">
+    <button class="ligne-ajout choix-ligne" data-theme-choix="auto"><span class="nom">Auto (comme le téléphone)</span><span class="case"><svg class="ic"><use href="icones/tabler.svg#check"></use></svg></span></button>
+    <button class="ligne-ajout choix-ligne" data-theme-choix="clair"><span class="nom">Clair</span><span class="case"><svg class="ic"><use href="icones/tabler.svg#check"></use></svg></span></button>
+    <button class="ligne-ajout choix-ligne" data-theme-choix="sombre"><span class="nom">Sombre</span><span class="case"><svg class="ic"><use href="icones/tabler.svg#check"></use></svg></span></button>
+  </div>
+</section>
+
+<!-- ============ MES PIÈCES (ouvert depuis Réglages) ============ -->
+<section id="ecran-pieces" class="ecran" hidden>
+  <header class="barre coul-gris">
+    <button class="btn-icone" data-retour aria-label="Retour"><svg class="ic"><use href="icones/tabler.svg#arrow-left"></use></svg></button>
+    <h1 class="titre">Mes pièces</h1>
+    <button class="btn-icone btn-ranger" data-ranger aria-label="Ranger les pièces"></button>
+  </header>
+  <div id="liste-pieces"></div>
+  <form id="form-piece" class="form-ligne form-piece" autocomplete="off">
+    <input id="piece-nom" placeholder="Nouvelle pièce (ex. Entrée)" required>
+    <button class="btn-principal coul-turquoise" aria-label="Ajouter la pièce"><svg class="ic"><use href="icones/tabler.svg#plus"></use></svg></button>
+  </form>
+</section>
+
+<!-- ============ FENÊTRES (par-dessus l'écran) ============ -->
+<!-- Mini-fiche d'une tâche : Fait / Plus tard, historique, menu ⋯ -->
+<div id="fenetre-fiche" class="fenetre" hidden>
+  <div class="fenetre-boite" role="dialog" aria-labelledby="fiche-nom">
+    <h2 class="fenetre-titre" id="fiche-titre"><span id="fiche-nom" class="nom"></span>
+      <button id="fiche-menu" class="btn-icone" aria-label="Plus d'actions"><svg class="ic"><use href="icones/tabler.svg#dots"></use></svg></button>
+      <button class="btn-icone" data-fermer aria-label="Fermer"><svg class="ic"><use href="icones/tabler.svg#x"></use></svg></button>
+    </h2>
+    <div id="fiche-menu-choix" class="menu-choix" hidden>
+      <button id="fiche-modifier" class="ligne-ajout"><svg class="ic"><use href="icones/tabler.svg#pencil"></use></svg>Modifier</button>
+      <button id="fiche-supprimer" class="ligne-ajout danger"><svg class="ic"><use href="icones/tabler.svg#trash"></use></svg>Supprimer</button>
+    </div>
+    <p id="fiche-detail" class="fiche-detail mono"></p>
+    <div class="fiche-vie"><span class="vie grande"><i id="fiche-vie"></i></span><span id="fiche-jours" class="mono"></span></div>
+    <div class="fenetre-boutons deux">
+      <button id="fiche-fait" class="btn-principal coul-vert"><svg class="ic"><use href="icones/tabler.svg#check"></use></svg>Fait</button>
+      <button id="fiche-tard" class="btn-principal coul-jaune"><svg class="ic"><use href="icones/tabler.svg#clock"></use></svg>Plus tard</button>
+    </div>
+    <h3 class="sous-titre"><svg class="ic"><use href="icones/tabler.svg#history"></use></svg>Historique</h3>
+    <p id="fiche-histo" class="fiche-histo mono"></p>
+  </div>
+</div>
+
+<!-- Plus tard : de combien de jours repousser -->
+<div id="fenetre-tard" class="fenetre" hidden>
+  <div class="fenetre-boite petite" role="dialog" aria-labelledby="tard-titre">
+    <h2 class="fenetre-titre coul-jaune"><span id="tard-titre" class="nom"></span>
+      <button class="btn-icone" data-fermer aria-label="Fermer"><svg class="ic"><use href="icones/tabler.svg#x"></use></svg></button>
+    </h2>
+    <div id="tard-choix" class="tard-choix">
+      <button class="btn" data-jours="1">+1 j</button>
+      <button class="btn" data-jours="2">+2 j</button>
+      <button class="btn" data-jours="3">+3 j</button>
+      <button class="btn" data-jours="7">+1 sem.</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ajouter / modifier une tâche -->
+<div id="fenetre-tache" class="fenetre" hidden>
+  <form id="form-tache" class="fenetre-boite" role="dialog" aria-labelledby="tache-titre" autocomplete="off">
+    <h2 class="fenetre-titre coul-turquoise"><span id="tache-titre" class="nom"></span>
+      <button type="button" class="btn-icone" data-fermer aria-label="Fermer"><svg class="ic"><use href="icones/tabler.svg#x"></use></svg></button>
+    </h2>
+    <div class="champ-fenetre"><input id="ft-nom" placeholder="Nom de la tâche (ex. Aspirateur)" aria-label="Nom de la tâche" required></div>
+    <div class="ligne-fenetre"><span class="etiquette-champ">Pièce</span><div id="ft-piece" class="segments segments-libres"></div></div>
+    <div class="ligne-fenetre"><span class="etiquette-champ">Tous les</span>
+      <div class="compteur-qte">
+        <button type="button" class="btn-icone" data-freq="-1" aria-label="Moins"><svg class="ic"><use href="icones/tabler.svg#minus"></use></svg></button>
+        <span id="ft-freq">7</span><span>j</span>
+        <button type="button" class="btn-icone" data-freq="1" aria-label="Plus"><svg class="ic"><use href="icones/tabler.svg#plus"></use></svg></button>
+      </div>
+    </div>
+    <div class="ligne-fenetre"><span class="etiquette-champ"></span>
+      <div class="segments segments-libres" id="ft-freq-rapide">
+        <button type="button" data-freq-fixe="1">1 j</button><button type="button" data-freq-fixe="3">3 j</button><button type="button" data-freq-fixe="7">1 sem.</button><button type="button" data-freq-fixe="14">2 sem.</button><button type="button" data-freq-fixe="30">1 mois</button>
+      </div>
+    </div>
+    <div class="ligne-fenetre"><span class="etiquette-champ">Dernière fois</span><input id="ft-fait" type="date" aria-label="Dernière fois faite"></div>
+    <div class="fenetre-boutons">
+      <button type="button" id="ft-supprimer" class="btn" aria-label="Supprimer la tâche"><svg class="ic"><use href="icones/tabler.svg#trash"></use></svg></button>
+      <button class="btn-principal coul-turquoise">OK</button>
+    </div>
+  </form>
+</div>
+
+<!-- Petit message en bas de l'écran (« Tâche supprimée — Annuler ») -->
+<div id="toast" class="toast" hidden>
+  <span id="toast-texte"></span>
+  <button id="toast-annuler">Annuler</button>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

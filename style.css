@@ -1,0 +1,409 @@
+/* =========================================================
+   Apparence de l'appli — style « brut » (néo-brutaliste) :
+   angles droits, traits épais, chiffres en police machine,
+   une couleur par pièce, ombres décalées sur les boutons.
+   Les couleurs sont des « variables » (--fond, --encre...) :
+   le thème sombre ne fait que les redéfinir.
+   ========================================================= */
+
+/* Polices copiées dans le dossier « polices » (marchent hors ligne) */
+@font-face { font-family: "Space Grotesk"; font-weight: 400; font-display: swap; src: url(polices/space-grotesk-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: "Space Grotesk"; font-weight: 700; font-display: swap; src: url(polices/space-grotesk-latin-700-normal.woff2) format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 400; font-display: swap; src: url(polices/jetbrains-mono-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 700; font-display: swap; src: url(polices/jetbrains-mono-latin-700-normal.woff2) format("woff2"); }
+
+:root {
+  --fond: #f4f3ee;         /* papier légèrement crème */
+  --carte: #ffffff;
+  --encre: #111111;        /* traits épais, texte, ombres */
+  --discret: #6b6a64;
+  --fin: #d6d4cc;          /* traits fins entre les lignes */
+  --pris: #a3a19a;         /* objets déjà pris */
+  --quadrillage: #e3e1d8;  /* carreaux du papier autour de l'écran */
+  --danger: #b3261e;
+  --ligne: #111111;        /* couleur des traits épais (= encre en clair) */
+  --ombre-c: #111111;      /* couleur des ombres décalées */
+  --trait: 2.5px;          /* épaisseur des traits « brut » */
+  --ombre: 3px;            /* décalage de l'ombre des boutons */
+  --texte: "Space Grotesk", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+
+
+/* ---------- Les 8 couleurs de pièces ----------
+   --cf = couleur du fond, --ct = couleur du texte posé dessus */
+.coul-jaune     { --cf: #FAC775; --ct: #412402; }
+.coul-bleu      { --cf: #85B7EB; --ct: #042C53; }
+.coul-vert      { --cf: #97C459; --ct: #173404; }
+.coul-corail    { --cf: #F0997B; --ct: #4A1B0C; }
+.coul-rose      { --cf: #ED93B1; --ct: #4B1528; }
+.coul-violet    { --cf: #AFA9EC; --ct: #26215C; }
+.coul-turquoise { --cf: #5DCAA5; --ct: #04342C; }
+.coul-gris      { --cf: #B4B2A9; --ct: #2C2C2A; }
+
+/* ---------- Thème sombre « ardoise + pastel » (v1.3.0) ----------
+   Activé par l'attribut data-theme="sombre" sur la page, posé par le petit script
+   en haut d'index.html : selon le réglage du tel (Auto), ou forcé dans Réglages.
+   Surfaces gris-bleu calmes, traits discrets, ombres plus sombres que le fond,
+   bandeaux pastel adoucis avec texte foncé dessus. */
+:root[data-theme="sombre"] {
+  --fond: #171c24;
+  --carte: #1f2531;
+  --encre: #dfe4ec;        /* texte */
+  --discret: #8b95a7;
+  --fin: #2b3342;
+  --pris: #586274;
+  --quadrillage: #1d2230;
+  --danger: #f2b8b5;
+  --ligne: #39445a;        /* traits épais : discrets, plus du tout beige clair */
+  --ombre-c: #0a0d12;      /* ombres : plus sombres que le fond, comme une vraie ombre */
+  color-scheme: dark;
+}
+[data-theme="sombre"] .coul-jaune     { --cf: #D9B577; --ct: #2a1c06; }
+[data-theme="sombre"] .coul-bleu      { --cf: #93B2CF; --ct: #102438; }
+[data-theme="sombre"] .coul-vert      { --cf: #A3BD7C; --ct: #1a2a0c; }
+[data-theme="sombre"] .coul-corail    { --cf: #D9A08A; --ct: #3a1508; }
+[data-theme="sombre"] .coul-rose      { --cf: #D5A0B4; --ct: #3a1222; }
+[data-theme="sombre"] .coul-violet    { --cf: #ABA6D6; --ct: #1e1a4a; }
+[data-theme="sombre"] .coul-turquoise { --cf: #82C2AC; --ct: #062a22; }
+[data-theme="sombre"] .coul-gris      { --cf: #A9A7A0; --ct: #24231f; }
+
+
+/* Couleurs des barres de vie : pleine (vert) → moyenne (jaune) → presque vide (corail) */
+:root { --vie-ok: #97C459; --vie-moyen: #FAC775; --vie-bas: #F0997B; --vie-fond: #f4f3ee; }
+:root[data-theme="sombre"] { --vie-ok: #A3BD7C; --vie-moyen: #D9B577; --vie-bas: #D9A08A; --vie-fond: #171c24; }
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--fond);
+  color: var(--encre);
+  font: 15px/1.35 var(--texte);
+  -webkit-tap-highlight-color: transparent;
+}
+.mono { font-family: var(--mono); font-weight: 700; }
+
+/* Fond « papier quadrillé » autour de l'écran */
+body {
+  background-color: var(--fond);
+  background-image:
+    linear-gradient(var(--quadrillage) 1px, transparent 1px),
+    linear-gradient(90deg, var(--quadrillage) 1px, transparent 1px);
+  background-size: 12px 12px;
+  background-attachment: fixed;
+}
+
+/* Chaque écran : une carte posée sur le papier (cadre épais + ombre décalée) */
+.ecran {
+  --marge: 8px;
+  width: calc(100% - 2 * var(--marge) - var(--ombre));
+  max-width: 520px;
+  margin: calc(var(--marge) + env(safe-area-inset-top)) auto calc(var(--marge) + var(--ombre) + env(safe-area-inset-bottom));
+  min-height: calc(100dvh - 2 * var(--marge) - var(--ombre) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  background: var(--carte);
+  border: var(--trait) solid var(--ligne);
+  box-shadow: 5px 5px 0 var(--ombre-c);
+}
+@media (min-width: 560px) { .ecran { --marge: 20px; } }
+.ecran[hidden] { display: none; }
+
+/* Icônes : trait fin, couleur du texte */
+.ic {
+  width: 20px; height: 20px;
+  fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+/* ---------- Barre du haut ---------- */
+.barre {
+  display: flex; align-items: center; gap: 2px;
+  padding: calc(8px + env(safe-area-inset-top)) 6px 8px 10px;
+  border-bottom: var(--trait) solid var(--ligne);
+  position: sticky; top: 0; z-index: 3;
+  background: var(--cf, var(--carte)); color: var(--ct, var(--encre));
+}
+.barre .btn-icone { color: inherit; }
+.titre { flex: 1; margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
+.btn-icone.actif { background: var(--ct); color: var(--cf); }
+/* Indicateur de synchro (dans Réglages → Compte) */
+.synchro { display: flex; }
+.synchro.ok { opacity: .6; }
+
+/* ---------- Boutons ---------- */
+button { font: inherit; color: inherit; cursor: pointer; }
+.btn-icone { background: none; border: 0; padding: 6px; display: flex; color: var(--encre); }
+.btn-icone:active { background: var(--fond); }
+
+/* Gros boutons « brut » : cadre épais + ombre décalée qui s'enfonce à l'appui */
+.btn, .btn-principal {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 0 14px;
+  border: var(--trait) solid var(--ligne); border-radius: 0;
+  background: var(--carte); color: var(--encre);
+  font: 700 14px var(--mono); text-transform: uppercase; letter-spacing: .03em;
+  box-shadow: var(--ombre) var(--ombre) 0 var(--ombre-c);
+  transition: transform .06s, box-shadow .06s;
+}
+.btn-principal { background: var(--cf); color: var(--ct); }
+.btn:active, .btn-principal:active { transform: translate(var(--ombre), var(--ombre)); box-shadow: 0 0 0 var(--ombre-c); }
+.btn-ranger.actif { font: 700 13px var(--mono); padding: 6px 10px; }
+
+/* ---------- Bandeau « pause » ---------- */
+.bandeau-pause {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  background: var(--fond); border-bottom: var(--trait) solid var(--ligne);
+  font: 700 12px var(--mono); text-transform: uppercase;
+}
+.bandeau-pause[hidden] { display: none; }
+.bandeau-pause span { flex: 1; }
+.bandeau-pause .btn-principal { min-height: 34px; padding: 0 10px; font-size: 12px; }
+.bandeau-pause .ic { width: 16px; height: 16px; }
+
+/* ---------- Jauge « maison propre » ---------- */
+.jauge { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: var(--trait) solid var(--ligne); }
+.jauge-barre { flex: 1; height: 14px; border: var(--trait) solid var(--ligne); background: var(--vie-fond); }
+.jauge-barre i { display: block; height: 100%; width: 0; transition: width .45s cubic-bezier(.3, 1.4, .5, 1); }
+#jauge-pct { font-size: 14px; min-width: 44px; text-align: right; }
+
+/* ---------- Onglets À faire / Pièces ---------- */
+.onglets { display: flex; border-bottom: var(--trait) solid var(--ligne); }
+.onglets button {
+  flex: 1; padding: 7px; background: var(--carte); border: 0;
+  font: 700 13px var(--mono); text-transform: uppercase; letter-spacing: .04em;
+}
+.onglets button + button { border-left: var(--trait) solid var(--ligne); }
+.onglets button[aria-pressed="true"] { background: var(--encre); color: var(--carte); }
+
+.zone-recherche { padding: 8px 10px; border-bottom: var(--trait) solid var(--ligne); }
+.zone-recherche[hidden] { display: none; }
+.zone-recherche input { width: 100%; }
+
+/* ---------- Cadres (une boîte par pièce, ou une seule boîte « À faire ») ---------- */
+.aff-cadres { padding: 10px; background: var(--fond); display: grid; gap: 12px; align-content: start; flex: 1; }
+.boite { background: var(--carte); border: var(--trait) solid var(--ligne); box-shadow: var(--ombre) var(--ombre) 0 var(--ombre-c); overflow: hidden; }
+.titre-section {
+  display: flex; align-items: center; gap: 8px; margin: 0;
+  padding: 4px 10px;
+  background: var(--cf, var(--fond)); color: var(--ct, var(--encre));
+  border-bottom: var(--trait) solid var(--ligne);
+  font: 700 12px var(--mono); text-transform: uppercase; letter-spacing: .06em;
+}
+.titre-section .nom { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vide { color: var(--discret); text-align: center; padding: 22px 12px; margin: 0; }
+
+/* ---------- Une tâche ----------
+   « glissiere » = le rail : derrière, les deux actions (Fait à gauche, Plus tard à droite) ;
+   devant, la ligne qui suit le doigt quand on la fait glisser. */
+.glissiere { position: relative; overflow: hidden; border-bottom: 1px solid var(--fin); }
+.boite .glissiere:last-child { border-bottom: 0; }
+.derriere {
+  position: absolute; inset: 0; display: flex; align-items: center; padding: 0 14px; gap: 6px;
+  font: 700 12px var(--mono); text-transform: uppercase; visibility: hidden;
+}
+.derriere .ic { width: 18px; height: 18px; stroke-width: 2.4; }
+.derriere-fait { background: var(--vie-ok); color: #173404; }
+.derriere-tard { background: var(--vie-moyen); color: #412402; justify-content: flex-end; }
+.tache {
+  position: relative; display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; min-height: 42px; background: var(--carte);
+  touch-action: pan-y; /* défilement vertical normal ; le glisser horizontal est pour nous */
+  user-select: none; -webkit-user-select: none; cursor: pointer;
+}
+.tache .nom { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jours { font: 700 12px var(--mono); color: var(--discret); white-space: nowrap; }
+.jours.retard { color: var(--danger); }
+.carre { width: 11px; height: 11px; flex-shrink: 0; background: var(--cf); border: 1.5px solid var(--ligne); }
+/* Barre de vie : se vide jusqu'à l'échéance */
+.vie { width: 54px; height: 9px; flex-shrink: 0; border: 1.5px solid var(--ligne); background: var(--vie-fond); }
+.vie i { display: block; height: 100%; }
+.vie.grande { flex: 1; width: auto; height: 12px; border-width: 2px; }
+.ok { background: var(--vie-ok); } .moyen { background: var(--vie-moyen); } .bas { background: var(--vie-bas); }
+/* Mode Modifier : fréquence + croix pour supprimer */
+.freq { font: 700 12px var(--mono); color: var(--discret); white-space: nowrap; }
+.retirer { color: var(--pris); padding: 4px; margin: -4px -4px -4px 0; }
+.retirer .ic { width: 16px; height: 16px; }
+.ligne-ajout {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 10px; background: none; border: 0; border-bottom: 1px solid var(--fin);
+  color: var(--discret); text-align: left; font-size: 14px;
+}
+.boite .ligne-ajout:last-child { border-bottom: 0; }
+.ligne-ajout .nom { flex: 1; }
+.ligne-lien { color: var(--encre); }
+.fleche-droite { margin-left: auto; }
+
+/* ---------- Réglages ---------- */
+.section {
+  margin: 0; padding: 4px 10px;
+  background: var(--fond); border-bottom: var(--trait) solid var(--ligne);
+  font: 700 12px var(--mono); text-transform: uppercase; letter-spacing: .06em;
+  display: flex; justify-content: space-between;
+}
+* + .section { border-top: var(--trait) solid var(--ligne); }
+.aide { color: var(--discret); font-size: 13px; margin: 0; padding: 8px 10px 4px; }
+.ligne-choix { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--fin); }
+.ligne-choix .nom { flex: 1; min-width: 0; }
+.valeur { font: 700 12px var(--mono); text-transform: uppercase; }
+.segments { display: flex; border: var(--trait) solid var(--ligne); }
+.segments button {
+  background: var(--carte); border: 0; padding: 5px 8px;
+  font: 700 12px var(--mono); text-transform: uppercase;
+}
+.segments button + button { border-left: 2px solid var(--ligne); }
+.segments button[aria-pressed="true"] { background: #FAC775; color: #111; }
+.segments-libres { flex-wrap: wrap; border: 0; gap: 5px; }
+.segments-libres button { border: 2px solid var(--ligne); }
+.segments-libres button + button { border-left: 2px solid var(--ligne); }
+.segments-libres button[aria-pressed="true"][class*="coul-"] { background: var(--cf); color: var(--ct); box-shadow: 2px 2px 0 var(--ombre-c); }
+.boutons { display: flex; gap: 10px; flex-wrap: wrap; padding: 12px 13px 13px 10px; }
+.boutons .btn { flex: 1; }
+.version { margin-top: auto; padding: 24px 0 12px; text-align: center; font: 700 11px var(--mono); color: var(--discret); text-transform: uppercase; }
+
+/* Écran Thème : une ligne par choix, case cochée sur le choix actuel */
+.choix-ligne { color: var(--encre); min-height: 46px; }
+.case {
+  width: 18px; height: 18px; flex-shrink: 0; border: 2px solid var(--ligne);
+  display: flex; align-items: center; justify-content: center;
+}
+.case .ic { width: 14px; height: 14px; stroke-width: 3; opacity: 0; }
+[aria-pressed="true"] > .case { background: var(--encre); color: var(--carte); }
+[aria-pressed="true"] > .case .ic { opacity: 1; }
+
+/* Interrupteurs (Réglages → Ressenti) */
+.interrupteur {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 10px; min-height: 44px; background: none; border: 0;
+  border-bottom: 1px solid var(--fin); text-align: left;
+}
+.interrupteur[hidden] { display: none; }
+.interrupteur .nom { flex: 1; min-width: 0; }
+.bascule { position: relative; width: 40px; height: 22px; flex-shrink: 0; border: var(--trait) solid var(--ligne); background: var(--fond); }
+.bascule::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px;
+  background: var(--discret); transition: transform .15s ease-out, background .15s;
+}
+.interrupteur[aria-pressed="true"] .bascule { background: #FAC775; }
+.interrupteur[aria-pressed="true"] .bascule::after { transform: translateX(18px); background: #111; }
+
+/* ---------- Mes pièces ---------- */
+.piece { border-bottom: 1px solid var(--fin); background: var(--carte); }
+.piece .ligne { display: flex; align-items: center; gap: 8px; padding: 6px 10px; }
+.piece .p-nom { flex: 1; min-width: 0; height: 36px; border-color: transparent; background: transparent; padding: 0 4px; }
+.piece .nb { font: 700 12px var(--mono); color: var(--discret); }
+.nuancier { display: flex; gap: 6px; padding: 0 10px 10px 29px; }
+.nuancier button { width: 24px; height: 24px; padding: 0; background: var(--cf); border: 2px solid var(--ligne); }
+.nuancier button.choisie { outline: 2px solid var(--ligne); outline-offset: 2px; }
+.form-piece { padding: 10px; }
+.form-ligne { display: flex; gap: 8px; align-items: center; }
+.form-ligne input { flex: 1; }
+.form-ligne .btn-principal { padding: 0 12px; }
+
+/* Glisser pour réordonner (mode Ranger de « Mes pièces ») */
+.poignee { display: flex; padding: 6px 2px; color: var(--discret); cursor: grab; touch-action: none; }
+.poignee .ic { width: 18px; height: 18px; }
+.piece { transition: transform .12s ease-out, box-shadow .12s ease-out; }
+.glisse {
+  position: relative; z-index: 4; background: var(--carte);
+  outline: var(--trait) solid var(--ligne); outline-offset: -2px;
+  box-shadow: 5px 5px 0 var(--ombre-c); cursor: grabbing;
+}
+
+input {
+  font: inherit; color: var(--encre); background: var(--carte);
+  border: 2px solid var(--ligne); border-radius: 0;
+  height: 44px; padding: 0 8px; min-width: 0;
+}
+input:focus { outline: 2px solid var(--ligne); outline-offset: 1px; }
+input[type=date] { height: 36px; font: 700 13px var(--mono); }
+
+/* ---------- Connexion ---------- */
+.connexion { margin: auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px; }
+.connexion h1 { margin: 0; font-size: 26px; letter-spacing: -.02em; }
+.discret { color: var(--discret); margin: 0 0 8px; }
+.erreur { color: var(--danger); font-size: 13px; }
+
+/* ---------- Petit message « Annuler » ---------- */
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  display: flex; align-items: center; gap: 14px;
+  background: var(--encre); color: var(--carte);
+  border: var(--trait) solid var(--ligne);
+  padding: 10px 14px; font-size: 14px; z-index: 40;
+  width: max-content; max-width: min(440px, calc(100% - 24px));
+}
+.toast span { flex: 1; min-width: 0; }
+.toast button { white-space: nowrap; }
+.toast[hidden] { display: none; }
+.toast button { background: none; border: 0; color: inherit; font: 700 13px var(--mono); text-transform: uppercase; text-decoration: underline; padding: 0; }
+
+/* ---------- Fenêtres par-dessus l'écran ---------- */
+.fenetre {
+  position: fixed; inset: 0; z-index: 30;
+  background: rgba(10, 12, 16, .5);
+  display: flex; align-items: center; justify-content: center;
+  padding: calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom));
+}
+.fenetre[hidden] { display: none; }
+.fenetre-boite {
+  width: 100%; max-width: 460px; max-height: 100%; overflow-y: auto; margin: 0;
+  background: var(--carte); border: var(--trait) solid var(--ligne); box-shadow: 5px 5px 0 var(--ombre-c);
+}
+.fenetre-boite.petite { max-width: 340px; }
+@keyframes fenetre-entre { from { transform: translateY(14px) scale(.98); opacity: 0; } }
+:root:not([data-anim="simples"]) .fenetre:not([hidden]) .fenetre-boite { animation: fenetre-entre .16s ease-out; }
+.fenetre-titre {
+  display: flex; align-items: center; gap: 4px; margin: 0; padding: 5px 4px 5px 10px;
+  background: var(--cf, var(--fond)); color: var(--ct, var(--encre)); border-bottom: var(--trait) solid var(--ligne);
+  font-size: 16px; min-height: 44px;
+}
+.fenetre-titre .nom { flex: 1; min-width: 0; }
+.fenetre-titre .btn-icone { color: inherit; }
+.fenetre-boutons { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; padding: 10px 13px 13px 10px; }
+.fenetre-boutons.deux { grid-template-columns: 1fr 1fr; }
+.menu-choix { border-bottom: var(--trait) solid var(--ligne); background: var(--fond); }
+.menu-choix[hidden] { display: none; }
+.menu-choix .ligne-ajout { color: var(--encre); }
+.menu-choix .danger { color: var(--danger); }
+.fiche-detail { margin: 0; padding: 10px 10px 4px; font-size: 12px; color: var(--discret); text-transform: uppercase; }
+.fiche-vie { display: flex; align-items: center; gap: 10px; padding: 4px 10px 6px; }
+.fiche-vie .mono { font-size: 13px; white-space: nowrap; }
+.sous-titre {
+  display: flex; align-items: center; gap: 6px; margin: 0; padding: 4px 10px;
+  background: var(--fond); border-block: var(--trait) solid var(--ligne);
+  font: 700 11px var(--mono); text-transform: uppercase; letter-spacing: .06em;
+}
+.sous-titre .ic { width: 15px; height: 15px; }
+.fiche-histo { margin: 0; padding: 8px 10px 12px; font-size: 13px; line-height: 1.7; }
+.tard-choix { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 13px 13px 10px; }
+.champ-fenetre { padding: 10px 10px 4px; }
+.champ-fenetre input { width: 100%; }
+.ligne-fenetre { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-bottom: 1px solid var(--fin); }
+.etiquette-champ { font: 700 10px var(--mono); text-transform: uppercase; color: var(--discret); width: 70px; flex-shrink: 0; }
+.compteur-qte { display: flex; align-items: center; gap: 6px; font: 700 15px var(--mono); }
+.compteur-qte .btn-icone { border: 2px solid var(--ligne); padding: 3px; }
+#ft-freq { min-width: 26px; text-align: center; }
+
+/* ---------- Animations ---------- */
+@keyframes entre-droite { from { transform: translateX(18px); opacity: 0; } }
+@keyframes entre-gauche { from { transform: translateX(-18px); opacity: 0; } }
+.entre-droite { animation: entre-droite .18s ease-out; }
+.entre-gauche { animation: entre-gauche .18s ease-out; }
+/* Tâche faite : la barre se remplit d'un coup avec un éclat */
+@keyframes recharge { from { width: 0; } }
+@keyframes eclat { 0% { box-shadow: 0 0 0 0 var(--vie-ok); } 100% { box-shadow: 0 0 0 6px transparent; } }
+.vient-fait .vie i { animation: recharge .5s cubic-bezier(.3, 1.4, .5, 1); }
+.vient-fait .vie { animation: eclat .5s ease-out; }
+/* Ligne qui s'assombrit légèrement au toucher */
+:root:not([data-anim="simples"]) .tache:active { background: var(--fond); }
+/* Animations simples : on garde l'essentiel (le doigt), on coupe les effets */
+:root[data-anim="simples"] .vient-fait .vie, :root[data-anim="simples"] .vient-fait .vie i,
+:root[data-anim="simples"] .entre-droite, :root[data-anim="simples"] .entre-gauche { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
