@@ -407,3 +407,69 @@ input[type=date] { height: 36px; font: 700 13px var(--mono); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Petit panneau des listes déroulantes sur téléphone (module champs-mobile.js) :
+   il reprend les couleurs de l'appli, et suit donc le thème clair / sombre. */
+.pm-voile { --pm-fond: var(--carte); --pm-texte: var(--encre); --pm-discret: var(--discret); --pm-trait: var(--fin); --pm-accent: var(--encre); --pm-champ: var(--fond); --pm-police: var(--texte); }
+
+/* ---------- v0.2.0 : barres par pièce ---------- */
+/* Une mini-barre par pièce, sur 2 colonnes, juste sous la jauge maison */
+.barres-pieces {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 12px;
+  padding: 6px 10px; border-bottom: var(--trait) solid var(--ligne);
+}
+.barres-pieces:empty { display: none; }
+.mini { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.mini .carre { width: 9px; height: 9px; }
+.mini .nom { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 11px var(--mono); color: var(--discret); }
+.mini .vie { width: 38px; height: 8px; }
+
+/* ---------- v0.2.0 : tâches propres grisées et repliées ---------- */
+/* Ligne « › 18 tâches propres » : on la touche pour déplier / replier */
+.ligne-propres {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  padding: 7px 10px; background: var(--fond); border: 0; border-top: 1px solid var(--fin);
+  font: 700 12px var(--mono); text-transform: uppercase; color: var(--discret); text-align: left;
+}
+.ligne-propres .ic { width: 16px; height: 16px; transition: transform .15s; }
+.ligne-propres.ouvert .ic { transform: rotate(90deg); }
+.boite .ligne-propres + .glissiere { border-top: 1px solid var(--fin); }
+/* Tâche propre (barre ≥ 70 %) : pâlie, mais elle se glisse toujours comme les autres */
+.glissiere.propre .tache > * { opacity: .45; }
+
+/* ---------- v0.2.0 : vue Pièces en 2 colonnes ---------- */
+.aff-colonnes { display: block; columns: 2; column-gap: 8px; padding: 8px; }
+.aff-colonnes .boite { break-inside: avoid; margin-bottom: 8px; }
+.aff-colonnes .titre-section { padding: 3px 6px; gap: 4px; font-size: 10px; letter-spacing: 0; }
+.aff-colonnes .tache { gap: 4px; padding: 5px 6px; min-height: 34px; font-size: 13px; line-height: 1.2; }
+.aff-colonnes .jours { font-size: 10px; }
+.aff-colonnes .vie { width: 24px; height: 7px; }
+.aff-colonnes .ligne-propres { padding: 5px 6px; font-size: 10px; gap: 3px; }
+.aff-colonnes .ligne-ajout { padding: 6px; font-size: 12px; gap: 4px; }
+.aff-colonnes .ligne-ajout .ic { width: 15px; height: 15px; }
+.aff-colonnes .derriere { padding: 0 8px; font-size: 10px; }
+.aff-colonnes > .vide { column-span: all; }
+
+/* ---------- v0.2.0 : effets « façon jeu » ---------- */
+/* Calque par-dessus tout l'écran ; les doigts passent à travers */
+.effets { position: fixed; inset: 0; z-index: 50; pointer-events: none; overflow: hidden; }
+.confetti { position: absolute; width: 8px; height: 8px; border: 1.5px solid #111; }
+/* « +3 % » qui s'envole : gros chiffres mono, contour encre, ombre décalée (style brut) */
+.volant {
+  position: absolute; white-space: nowrap;
+  font: 700 26px var(--mono); -webkit-text-stroke: 1.2px #111; text-shadow: 3px 3px 0 #111;
+}
+.volant.vert { color: #97C459; }
+.volant.jaune { color: #FAC775; }
+/* Bannière « CUISINE 100 % » : tampon noir et jaune (couleurs de ma signature) */
+.banniere { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.banniere span {
+  font: 700 28px var(--mono); text-transform: uppercase; letter-spacing: 1px;
+  background: #111; color: #FAC775; padding: 10px 16px; border: 3px solid #FAC775;
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, .35); transform: rotate(-8deg); max-width: 90vw; text-align: center;
+}
+/* Le chiffre de la jauge tangue doucement, comme une carte qui flotte */
+@keyframes tangue { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
+#jauge-pct { display: inline-block; }
+#jauge-pct.tangue { animation: tangue 2.6s ease-in-out infinite; }
+:root[data-anim="simples"] #jauge-pct.tangue { animation: none; }

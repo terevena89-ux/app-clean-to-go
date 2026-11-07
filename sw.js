@@ -4,11 +4,11 @@
 // même sans réseau. (Les données, elles, sont gérées par Firebase.)
 // À CHAQUE NOUVELLE VERSION : changer le numéro ci-dessous.
 // =========================================================
-const CACHE = "clean-to-go-v0.1.0";
+const CACHE = "clean-to-go-v1.0.0";
 
 // Fichiers de l'appli à garder dès l'installation
 const FICHIERS = [
-  "./", "index.html", "style.css", "app.js", "feeling.js", "excel-style.js", "firebase-config.js",
+  "./", "index.html", "style.css", "app.js", "champs-mobile.js", "feeling.js", "excel-style.js", "firebase-config.js",
   "manifest.json", "icones/icone.svg", "icones/icone-192.png", "icones/tabler.svg",
   "polices/space-grotesk-latin-400-normal.woff2", "polices/space-grotesk-latin-700-normal.woff2",
   "polices/jetbrains-mono-latin-400-normal.woff2", "polices/jetbrains-mono-latin-700-normal.woff2"

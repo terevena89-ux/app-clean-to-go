@@ -24,12 +24,12 @@ import { firebaseConfig } from "./firebase-config.js";
 import { chargerExcelJS, ajouterFeuille, telechargerClasseur, lireClasseur, lireFeuille } from "./excel-style.js";
 import {
   lireReglage, changerReglage, peutVibrer, animationsCompletes,
-  tacheFaite, tacheRepoussee, seuilAtteint, attrape, lache, cran, essai
+  tacheFaite, tacheRepoussee, seuilAtteint, attrape, lache, cran, essai, bip, pieceComplete
 } from "./feeling.js";
 
 // ---------- 1. Réglages de base et données ----------
 
-const VERSION = "v0.1.0";
+const VERSION = "v1.0.0";
 const NOM_APPLI = "app-clean-to-go";   // nom du dossier dans Firestore et des fichiers Excel
 
 // Les 8 couleurs possibles pour une pièce (mêmes que dans Stuff to go)
@@ -38,7 +38,8 @@ const COULEURS = ["jaune", "bleu", "vert", "corail", "rose", "violet", "turquois
 // Toutes les données tiennent dans un seul objet « etat » :
 //   pieces : mes pièces, dans l'ordre d'affichage     [{ id, nom, couleur }]
 //   taches : mes tâches de ménage                      [{ id, nom, piece, freq, fait, report, histo }]
-//            freq   = tous les combien de jours
+//            freq   = tous les combien (nombre), unite = "j", "sem" ou "mois"
+//                     (ex. freq 2 + unite "sem" = toutes les 2 semaines)
 //            fait   = dernière fois faite ("AAAA-MM-JJ"), ou null si jamais
 //            report = nouvelle échéance choisie avec « Plus tard » ("AAAA-MM-JJ"), ou null
 //            histo  = les dernières dates où elle a été faite (la plus récente d'abord, 30 max)
@@ -62,7 +63,7 @@ function normaliser(d) {
     pieces: tableau(d.pieces).map((p, i) => ({ ...p, couleur: COULEURS.includes(p.couleur) ? p.couleur : COULEURS[i % 8] })),
     taches: tableau(d.taches).map(t => ({
       id: t.id, nom: String(t.nom || ""), piece: t.piece || "",
-      freq: Math.max(1, parseInt(t.freq, 10) || 7),
+      ...convertirFreq(Math.max(1, parseInt(t.freq, 10) || 7), UNITES[t.unite] ? t.unite : "j"),
       fait: dateOk(t.fait), report: dateOk(t.report),
       histo: tableau(t.histo).filter(dateOk)
     })),
@@ -94,13 +95,50 @@ const longue = s => `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}`; // «
 // Le « jour de référence » : aujourd'hui, ou le jour de début de la pause (le temps est gelé)
 const jourRef = () => etat.pause || aujourdhui();
 
+// --- Fréquences : jours, semaines ou mois ---
+const UNITES = { j: "j", sem: "sem.", mois: "mois" };
+const MAX_FREQ = { j: 365, sem: 52, mois: 24 };
+const texteFreq = t => `${t.freq} ${UNITES[t.unite] || "j"}`;
+// Conversion automatique des jours « ronds » : 30, 60, 90 j → 1, 2, 3 mois ;
+// 7, 14, 21 j → 1, 2, 3 sem. ; 15 j → 2 sem. (Excel, lui, garde tout en jours.)
+function convertirFreq(freq, unite) {
+  if (unite !== "j") return { freq, unite };
+  if (freq % 30 === 0) return { freq: freq / 30, unite: "mois" };
+  if (freq === 15) return { freq: 2, unite: "sem" };
+  if (freq % 7 === 0) return { freq: freq / 7, unite: "sem" };
+  return { freq, unite };
+}
+// Fréquence en jours, pour Excel (1 mois = 30 j, 1 sem. = 7 j)
+const enJours = t => t.freq * (t.unite === "mois" ? 30 : t.unite === "sem" ? 7 : 1);
+// Ajoute la fréquence d'une tâche à un jour (numéro de jour).
+// En mois, on garde le même jour du mois (7 nov. → 7 fév.) ; un 31 qui n'existe pas
+// devient le dernier jour du mois (31 janv. + 1 mois → 28 ou 29 fév.).
+function plusFreq(n, t) {
+  if (t.unite === "mois") {
+    const d = new Date(n * 864e5), jour = d.getUTCDate();
+    d.setUTCDate(1);
+    d.setUTCMonth(d.getUTCMonth() + t.freq);
+    const dernier = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+    d.setUTCDate(Math.min(jour, dernier));
+    return Math.round(d / 864e5);
+  }
+  return n + t.freq * (t.unite === "sem" ? 7 : 1);
+}
+// Longueur d'un « tour » de la tâche, en jours (sert à remplir la barre de vie)
+const duree = t => t.fait ? plusFreq(numero(t.fait), t) - numero(t.fait)
+  : t.freq * (t.unite === "mois" ? 30 : t.unite === "sem" ? 7 : 1);
+
 // Échéance d'une tâche (numéro de jour) : la date choisie avec « Plus tard » s'il y en a une,
 // sinon dernière fois + fréquence. Jamais faite = à faire tout de suite.
-const echeance = t => t.report ? numero(t.report) : t.fait ? numero(t.fait) + t.freq : numero(jourRef());
+const echeance = t => t.report ? numero(t.report) : t.fait ? plusFreq(numero(t.fait), t) : numero(jourRef());
 // Jours restants avant l'échéance (négatif = en retard)
 const reste = t => echeance(t) - numero(jourRef());
 // Vie de la tâche, de 1 (toute propre) à 0 (à faire) : c'est la barre de vie
-const vie = t => Math.max(0, Math.min(1, reste(t) / t.freq));
+const vie = t => Math.max(0, Math.min(1, reste(t) / duree(t)));
+// Tâche « propre » : barre encore remplie à 70 % ou plus. Elle est grisée et rangée
+// sous la ligne repliable « › N tâches propres », pour laisser la place à ce qui presse.
+const SEUIL_PROPRE = 0.7;
+const estPropre = t => vie(t) >= SEUIL_PROPRE;
 const classeVie = v => v > 0.5 ? "ok" : v > 0.2 ? "moyen" : "bas";
 const joursCourt = r => r > 0 ? r + " j" : r === 0 ? "auj." : "+" + -r + " j";
 const joursLong = r => r > 1 ? `dans ${r} j` : r === 1 ? "demain" : r === 0 ? "aujourd'hui" : `retard ${-r} j`;
@@ -278,17 +316,17 @@ function barreVie(t) {
 
 // Une ligne de tâche. En mode normal : un « rail » avec les actions derrière (Fait / Plus tard)
 // et la ligne devant, qu'on fait glisser. En mode Modifier : fréquence + croix.
-function ligneTache(t, avecCarre) {
+function ligneTache(t, avecCarre, grise = false) {
   const p = trouverPiece(t.piece);
   const carre = avecCarre ? `<span class="carre coul-${p.couleur}" title="${echapper(p.nom)}"></span>` : "";
   if (modeRanger) {
     return `<div class="glissiere" data-tache="${t.id}"><div class="tache">${carre}
-      <span class="nom">${echapper(t.nom)}</span><span class="freq">${t.freq} j</span>
+      <span class="nom">${echapper(t.nom)}</span><span class="freq">${texteFreq(t)}</span>
       <button class="btn-icone retirer" data-suppr="${t.id}" aria-label="Supprimer">${icone("x")}</button></div></div>`;
   }
   const r = reste(t);
   const anim = dernierFait === t.id && animationsCompletes() ? " vient-fait" : "";
-  return `<div class="glissiere${anim}" data-tache="${t.id}">
+  return `<div class="glissiere${anim}${grise ? " propre" : ""}" data-tache="${t.id}">
     <div class="derriere derriere-fait">${icone("check")}Fait</div>
     <div class="derriere derriere-tard">Plus tard${icone("clock")}</div>
     <div class="tache">${carre}<span class="nom">${echapper(t.nom)}</span>
@@ -302,11 +340,20 @@ function afficherAccueil() {
   $("bandeau-pause").hidden = !etat.pause;
   if (etat.pause) $("pause-texte").textContent = "En pause depuis le " + courte(etat.pause);
   $("btn-pause").classList.toggle("actif", !!etat.pause);
-  // Jauge « maison propre »
+  // Jauge « maison propre » (le chiffre tangue doucement, façon jeu, en animations complètes)
   const pct = score(etat.taches);
   $("jauge-remplie").style.width = pct + "%";
   $("jauge-remplie").className = classeVie(pct / 100);
   $("jauge-pct").textContent = pct + " %";
+  $("jauge-pct").classList.toggle("tangue", animationsCompletes());
+  // Mini-barres : une par pièce (seulement les pièces qui ont des tâches), sur 2 colonnes
+  $("barres-pieces").innerHTML = etat.pieces.map(p => {
+    const ts = etat.taches.filter(t => t.piece === p.id);
+    if (!ts.length) return "";
+    const s = score(ts);
+    return `<div class="mini" data-mini="${p.id}"><span class="carre coul-${p.couleur}"></span>
+      <span class="nom">${echapper(p.nom)}</span><span class="vie"><i class="${classeVie(s / 100)}" style="width:${s}%"></i></span></div>`;
+  }).join("");
   // Recherche
   $("zone-recherche").hidden = !rechercheOuverte;
   $("btn-recherche").classList.toggle("actif", rechercheOuverte);
@@ -315,11 +362,28 @@ function afficherAccueil() {
   const ajout = piece => modeRanger
     ? `<button class="ligne-ajout" data-ajouter="${piece || ""}">${icone("plus")}Ajouter une tâche</button>` : "";
 
+  // Les lignes d'une boîte : d'abord ce qui presse, puis la ligne repliable « › N tâches propres »
+  // (dépliée : les tâches propres, grisées). En mode Modifier ou pendant une recherche, tout est visible.
+  const ouvertes = lireReglage("propres") === "ouvertes";
+  const lignes = (taches, avecCarre) => {
+    if (modeRanger || q) return taches.map(t => ligneTache(t, avecCarre)).join("");
+    const aFaire = taches.filter(t => !estPropre(t)), propres = taches.filter(estPropre);
+    let h = aFaire.map(t => ligneTache(t, avecCarre)).join("");
+    if (propres.length) {
+      h += `<button class="ligne-propres${ouvertes ? " ouvert" : ""}" data-replier>${icone("chevron-right")}
+        <span class="nom">${propres.length} tâche${propres.length > 1 ? "s" : ""} propre${propres.length > 1 ? "s" : ""}</span></button>`;
+      if (ouvertes) h += propres.map(t => ligneTache(t, avecCarre, true)).join("");
+    }
+    return h;
+  };
+
   let html = "";
+  // Mode 2 colonnes (Réglages) : seulement pour la vue Pièces
+  $("liste-taches").classList.toggle("aff-colonnes", vue === "pieces" && lireReglage("colonnes") === "2col");
   if (vue === "afaire") {
     // Une seule boîte : toutes les tâches, la plus urgente en haut
     const liste = etat.taches.filter(garde).sort(parUrgence);
-    html = `<div class="boite">${liste.map(t => ligneTache(t, true)).join("")}
+    html = `<div class="boite">${lignes(liste, true)}
       ${!liste.length && !modeRanger ? `<p class="vide">${q ? "Rien trouvé" : "Aucune tâche"}</p>` : ""}${ajout("")}</div>`;
   } else {
     // Une boîte par pièce (avec son propre %), puis les tâches sans pièce s'il y en a
@@ -327,9 +391,9 @@ function afficherAccueil() {
       p, taches: etat.taches.filter(t => (trouverPiece(t.piece).id === p.id) && garde(t)).sort(parUrgence),
       toutes: etat.taches.filter(t => trouverPiece(t.piece).id === p.id)
     })).filter(g => g.p.id === "?" ? g.taches.length : (!q || g.taches.length));
-    html = groupes.map(g => `<div class="boite">
+    html = groupes.map(g => `<div class="boite" data-boite="${g.p.id}">
       <h2 class="titre-section coul-${g.p.couleur}"><span class="nom">${echapper(g.p.nom)}</span><span>${g.toutes.length ? score(g.toutes) + " %" : ""}</span></h2>
-      ${g.taches.map(t => ligneTache(t, false)).join("")}${g.p.id === "?" ? "" : ajout(g.p.id)}</div>`).join("")
+      ${lignes(g.taches, false)}${g.p.id === "?" ? "" : ajout(g.p.id)}</div>`).join("")
       || `<p class="vide">Rien trouvé</p>`;
   }
   $("liste-taches").innerHTML = html;
@@ -346,6 +410,7 @@ function afficherReglages() {
   document.querySelectorAll("[data-feeling]").forEach(b => b.setAttribute("aria-pressed", lireReglage(b.dataset.feeling)));
   document.querySelectorAll("[data-theme-choix]").forEach(b => b.setAttribute("aria-pressed", b.dataset.themeChoix === lireReglage("theme")));
   document.querySelectorAll("[data-anim-choix]").forEach(b => b.setAttribute("aria-pressed", b.dataset.animChoix === lireReglage("animations")));
+  document.querySelectorAll("[data-colonnes-choix]").forEach(b => b.setAttribute("aria-pressed", b.dataset.colonnesChoix === (lireReglage("colonnes") || "liste")));
 }
 
 // --- Mes pièces ---
@@ -394,9 +459,12 @@ function avecAnnulation(texte, action) {
 }
 
 // Tâche faite (aujourd'hui) : la barre se remplit, l'échéance repart de zéro
-function marquerFait(id) {
+// « origine » = l'endroit de l'écran d'où partent les effets (la ligne glissée, ou le bouton Fait).
+function marquerFait(id, origine) {
   const t = trouverTache(id);
   if (!t) return;
+  // On note les scores AVANT, pour savoir combien on a gagné (et si une pièce passe à 100 %)
+  const avant = { maison: score(etat.taches), piece: scorePiece(t.piece) };
   tacheFaite();
   dernierFait = id;
   avecAnnulation(`« ${t.nom} » fait`, () => {
@@ -405,16 +473,116 @@ function marquerFait(id) {
     t.report = null;
     t.histo = [j, ...t.histo.filter(x => x !== j)].slice(0, 30);
   });
+  if (animationsCompletes()) feteFait(t, origine, avant);
 }
+const scorePiece = id => score(etat.taches.filter(x => trouverPiece(x.piece).id === trouverPiece(id).id));
 
 // Plus tard : repousse l'échéance de n jours (à partir d'aujourd'hui si elle est déjà dépassée)
-function reporter(id, n) {
+function reporter(id, n, origine) {
   const t = trouverTache(id);
   if (!t) return;
   tacheRepoussee();
   avecAnnulation(`« ${t.nom} » repoussé de ${n} j`, () => {
     t.report = enDate(Math.max(echeance(t), numero(jourRef())) + n);
   });
+  if (animationsCompletes() && origine) volant(`+${n} j`, origine, { x: origine.x, y: origine.y - 70 }, "jaune");
+}
+
+// ---------- Les effets « façon jeu » (seulement en Animations : Complètes) ----------
+// Calque transparent posé sur tout l'écran, où naissent confettis et chiffres volants.
+const centreDe = el => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+const PASTELS = ["#FAC775", "#97C459", "#85B7EB", "#ED93B1", "#F0997B", "#AFA9EC", "#5DCAA5"];
+
+// Confettis : de petits carrés colorés qui jaillissent puis retombent (gravité)
+function confettis(o, nombre) {
+  for (let i = 0; i < nombre; i++) {
+    const c = document.createElement("i");
+    c.className = "confetti";
+    c.style.cssText = `left:${o.x}px;top:${o.y}px;background:${PASTELS[i % PASTELS.length]}`;
+    $("effets").appendChild(c);
+    const angle = Math.random() * Math.PI * 2, force = 60 + Math.random() * 110;
+    c.animate([
+      { transform: "translate(-50%,-50%) rotate(0)" },
+      { transform: `translate(${Math.cos(angle) * force}px, ${Math.sin(angle) * force + 90}px) rotate(${Math.random() * 540}deg)`, opacity: 0 }
+    ], { duration: 700 + Math.random() * 500, easing: "cubic-bezier(.2,.6,.4,1)" }).onfinish = () => c.remove();
+  }
+}
+// Texte qui s'envole d'un point à un autre (« +3 % » vers la jauge, « +2 j »...) : il gonfle, tangue, puis file
+function volant(texte, de, vers, couleur = "vert") {
+  const s = document.createElement("span");
+  s.className = "volant " + couleur;
+  s.textContent = texte;
+  s.style.cssText = `left:${de.x}px;top:${de.y}px`;
+  $("effets").appendChild(s);
+  s.animate([
+    { transform: "translate(-50%,-50%) scale(.5)", opacity: 1 },
+    { transform: "translate(-50%,-130%) scale(1.5) rotate(-8deg)", opacity: 1, offset: .35 },
+    { transform: `translate(calc(-50% + ${vers.x - de.x}px), calc(-50% + ${vers.y - de.y}px)) scale(.7)`, opacity: .2 }
+  ], { duration: 950, easing: "cubic-bezier(.5,0,.8,.6)" }).onfinish = () => s.remove();
+}
+// Petite secousse de l'écran, comme un coup de manette
+function secousse() {
+  $("ecran-accueil").animate([
+    { transform: "translate(0,0)" }, { transform: "translate(-4px,2px)" }, { transform: "translate(4px,-2px)" },
+    { transform: "translate(-3px,-1px)" }, { transform: "translate(2px,2px)" }, { transform: "translate(0,0)" }
+  ], { duration: 280 });
+}
+// Un élément « saute » (gros, penché, puis revient) : chiffres, mini-barres...
+function saute(el, fort = 1.4) {
+  if (el) el.animate([{ transform: "scale(1)" }, { transform: `scale(${fort}) rotate(-5deg)` }, { transform: "scale(.92) rotate(3deg)" }, { transform: "scale(1)" }],
+    { duration: 320, easing: "cubic-bezier(.3,1.6,.5,1)" });
+}
+// La jauge compte de l'ancien score au nouveau, un point à la fois, avec un bip
+// de plus en plus aigu à chaque point (comme les scores qui grimpent dans Balatro)
+let minuteurCompte = null;
+function compterJauge(de, a) {
+  clearTimeout(minuteurCompte);
+  if (a <= de) return;
+  const pas = Math.max(25, Math.min(90, 700 / (a - de)));
+  let actuel = de, i = 0;
+  const avance = () => {
+    actuel++; i++;
+    $("jauge-pct").textContent = actuel + " %";
+    $("jauge-remplie").style.width = actuel + "%";
+    bip(i);
+    saute($("jauge-pct"), 1.35);
+    if (actuel < a) minuteurCompte = setTimeout(avance, pas);
+  };
+  $("jauge-pct").textContent = de + " %";
+  $("jauge-remplie").style.width = de + "%";
+  minuteurCompte = setTimeout(avance, 420); // on attend que le « +X % » arrive à la jauge
+}
+// Grande bannière en tampon (« CUISINE 100 % ») : jingle, grosse vibration, pluie de confettis
+function banniere(texte) {
+  const b = document.createElement("div");
+  b.className = "banniere";
+  b.innerHTML = `<span>${echapper(texte)}</span>`;
+  $("effets").appendChild(b);
+  b.firstChild.animate([
+    { transform: "scale(3) rotate(-30deg)", opacity: 0 },
+    { transform: "scale(.9) rotate(-6deg)", opacity: 1, offset: .6 },
+    { transform: "scale(1) rotate(-8deg)", opacity: 1 }
+  ], { duration: 380, easing: "ease-out", fill: "forwards" });
+  pieceComplete();
+  confettis({ x: innerWidth / 2, y: innerHeight * 0.4 }, 70);
+  setTimeout(() => b.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300 }).onfinish = () => b.remove(), 1500);
+}
+// Toute la fête d'une tâche faite
+function feteFait(t, origine, avant) {
+  const o = origine || centreDe($("jauge-pct"));
+  const maison = score(etat.taches), piece = scorePiece(t.piece);
+  confettis(o, 34);
+  secousse();
+  const gain = maison - avant.maison;
+  volant(gain > 0 ? `+${gain} %` : "OK", o, centreDe($("jauge-pct")));
+  compterJauge(avant.maison, maison);
+  // La mini-barre de la pièce et la ligne « tâches propres » sautent aussi
+  setTimeout(() => {
+    saute(document.querySelector(`[data-mini="${trouverPiece(t.piece).id}"]`), 1.15);
+    saute(document.querySelector(`[data-boite="${trouverPiece(t.piece).id}"] .ligne-propres`) || document.querySelector(".ligne-propres"), 1.08);
+  }, 500);
+  if (piece === 100 && avant.piece < 100) setTimeout(() => banniere(`${trouverPiece(t.piece).nom} 100 %`), 1000);
+  else if (maison === 100 && avant.maison < 100) setTimeout(() => banniere("Maison 100 %"), 1000);
 }
 
 function supprimerTache(id) {
@@ -464,6 +632,13 @@ $("liste-taches").addEventListener("click", e => {
   if (suppr) { supprimerTache(suppr.dataset.suppr); return; }
   const ajout = e.target.closest("[data-ajouter]");
   if (ajout) { ouvrirEdition(null, ajout.dataset.ajouter); return; }
+  // Ligne « › N tâches propres » : déplie / replie (réglage gardé sur cet appareil)
+  if (e.target.closest("[data-replier]")) {
+    changerReglage("propres", lireReglage("propres") === "ouvertes" ? "fermees" : "ouvertes");
+    cran();
+    afficherAccueil();
+    return;
+  }
   const rail = e.target.closest("[data-tache]");
   if (!rail) return;
   if (modeRanger) ouvrirEdition(rail.dataset.tache);
@@ -505,7 +680,7 @@ function afficherFiche() {
   const r = reste(t), v = vie(t);
   $("fiche-titre").className = `fenetre-titre coul-${p.couleur}`;
   $("fiche-nom").textContent = t.nom;
-  $("fiche-detail").textContent = `${p.nom} · tous les ${t.freq} j${t.report ? " · repoussé" : ""}`;
+  $("fiche-detail").textContent = `${p.nom} · tous les ${texteFreq(t)}${t.report ? " · repoussé" : ""}`;
   $("fiche-vie").className = classeVie(v);
   $("fiche-vie").style.width = (r < 0 ? 0 : Math.max(v * 100, 4)) + "%";
   $("fiche-jours").textContent = joursLong(r);
@@ -513,7 +688,7 @@ function afficherFiche() {
   $("fiche-histo").textContent = t.histo.length ? t.histo.map(longue).join(" · ") : "Jamais faite";
 }
 $("fiche-menu").addEventListener("click", () => { $("fiche-menu-choix").hidden = !$("fiche-menu-choix").hidden; });
-$("fiche-fait").addEventListener("click", () => { const id = ficheOuverte; fermerFenetres(); marquerFait(id); });
+$("fiche-fait").addEventListener("click", () => { const id = ficheOuverte, o = centreDe($("fiche-fait")); fermerFenetres(); marquerFait(id, o); });
 $("fiche-tard").addEventListener("click", () => { const id = ficheOuverte; fermerFenetres(); ouvrirTard(id); });
 $("fiche-modifier").addEventListener("click", () => { const id = ficheOuverte; fermerFenetres(); ouvrirEdition(id); });
 $("fiche-supprimer").addEventListener("click", () => { const id = ficheOuverte; fermerFenetres(); supprimerTache(id); });
@@ -523,23 +698,25 @@ function ouvrirTard(id) {
   const t = trouverTache(id);
   if (!t) return;
   tardPour = id;
+  origineTard = null;
   $("tard-titre").textContent = "Plus tard : " + t.nom;
   $("fenetre-tard").hidden = false;
 }
 $("tard-choix").addEventListener("click", e => {
   const b = e.target.closest("[data-jours]");
   if (!b) return;
-  const id = tardPour;
+  const id = tardPour, o = origineTard || centreDe(b);
   fermerFenetres();
-  reporter(id, +b.dataset.jours);
+  reporter(id, +b.dataset.jours, o);
 });
+let origineTard = null; // d'où part le « +2 j » (la ligne glissée)
 
 // Ajouter / modifier une tâche
 function ouvrirEdition(id, piece) {
   const t = id && trouverTache(id);
   brouillon = t
-    ? { id: t.id, nom: t.nom, piece: t.piece, freq: t.freq, fait: t.fait || "" }
-    : { id: null, nom: "", piece: piece || (etat.pieces[0] || {}).id || "", freq: 7, fait: jourRef() };
+    ? { id: t.id, nom: t.nom, piece: t.piece, freq: t.freq, unite: t.unite, fait: t.fait || "" }
+    : { id: null, nom: "", piece: piece || (etat.pieces[0] || {}).id || "", freq: 1, unite: "sem", fait: jourRef() };
   $("tache-titre").textContent = t ? "Modifier la tâche" : "Nouvelle tâche";
   $("ft-nom").value = brouillon.nom;
   $("ft-fait").value = brouillon.fait;
@@ -552,16 +729,20 @@ function afficherEdition() {
   $("ft-piece").innerHTML = etat.pieces.map(p =>
     `<button type="button" class="coul-${p.couleur}" data-piece-choix="${p.id}" aria-pressed="${p.id === brouillon.piece}">${echapper(p.nom)}</button>`).join("");
   $("ft-freq").textContent = brouillon.freq;
-  document.querySelectorAll("[data-freq-fixe]").forEach(b => b.setAttribute("aria-pressed", +b.dataset.freqFixe === brouillon.freq));
+  document.querySelectorAll("[data-unite]").forEach(b => b.setAttribute("aria-pressed", b.dataset.unite === brouillon.unite));
+  document.querySelectorAll("[data-freq-fixe]").forEach(b => b.setAttribute("aria-pressed",
+    +b.dataset.freqFixe === brouillon.freq && b.dataset.uniteFixe === brouillon.unite));
 }
 $("form-tache").addEventListener("click", e => {
   if (!brouillon) return;
   const p = e.target.closest("[data-piece-choix]");
   if (p) { brouillon.piece = p.dataset.pieceChoix; afficherEdition(); return; }
   const f = e.target.closest("[data-freq]");
-  if (f) { brouillon.freq = Math.min(365, Math.max(1, brouillon.freq + +f.dataset.freq)); afficherEdition(); return; }
+  if (f) { brouillon.freq = Math.min(MAX_FREQ[brouillon.unite], Math.max(1, brouillon.freq + +f.dataset.freq)); afficherEdition(); return; }
+  const u = e.target.closest("[data-unite]");
+  if (u) { brouillon.unite = u.dataset.unite; brouillon.freq = Math.min(MAX_FREQ[brouillon.unite], brouillon.freq); afficherEdition(); return; }
   const ff = e.target.closest("[data-freq-fixe]");
-  if (ff) { brouillon.freq = +ff.dataset.freqFixe; afficherEdition(); }
+  if (ff) { brouillon.freq = +ff.dataset.freqFixe; brouillon.unite = ff.dataset.uniteFixe; afficherEdition(); }
 });
 $("ft-supprimer").addEventListener("click", () => { const id = brouillon && brouillon.id; fermerFenetres(); if (id) supprimerTache(id); });
 $("form-tache").addEventListener("submit", e => {
@@ -572,7 +753,8 @@ $("form-tache").addEventListener("submit", e => {
   const fait = /^\d{4}-\d{2}-\d{2}$/.test($("ft-fait").value) ? $("ft-fait").value : null;
   let t = b.id && trouverTache(b.id);
   if (!t) { t = { id: nouvelId(), histo: [], report: null, fait: null }; etat.taches.push(t); }
-  t.nom = nom; t.piece = b.piece; t.freq = b.freq;
+  t.nom = nom; t.piece = b.piece;
+  Object.assign(t, convertirFreq(b.freq, b.unite)); // ex. « 14 j » devient « 2 sem. »
   // Date « Dernière fois » changée à la main : l'échéance repart de cette date
   if (fait !== t.fait) {
     t.fait = fait;
@@ -597,6 +779,13 @@ $("reglages-feeling").addEventListener("click", e => {
 });
 function appliquerAnimations() { document.documentElement.dataset.anim = lireReglage("animations"); }
 appliquerAnimations();
+// Vue Pièces : en liste ou en 2 colonnes (réglage de cet appareil)
+$("choix-colonnes").addEventListener("click", e => {
+  const b = e.target.closest("[data-colonnes-choix]");
+  if (!b) return;
+  changerReglage("colonnes", b.dataset.colonnesChoix);
+  afficherReglages();
+});
 $("choix-animations").addEventListener("click", e => {
   const b = e.target.closest("[data-anim-choix]");
   if (!b) return;
@@ -688,7 +877,11 @@ $("liste-taches").addEventListener("pointerdown", e => {
     fondTard.style.visibility = dx < 0 ? "visible" : "hidden";
     const d = Math.abs(dx) >= seuil;
     if (d !== depasse) { depasse = d; if (d) seuilAtteint(); }
+    // Petits crans tous les 30 pixels (vibration légère), comme une molette
+    const c = Math.floor(Math.abs(dx) / 30);
+    if (c !== cranActuel) { cranActuel = c; if (!depasse) cran(); }
   };
+  let cranActuel = 0;
   const remettre = () => {
     ligne.style.transition = "transform .18s ease-out";
     ligne.style.transform = "";
@@ -707,16 +900,20 @@ $("liste-taches").addEventListener("pointerdown", e => {
     ignorerClic = true;
     setTimeout(() => { ignorerClic = false; }, 60);
     const id = rail.dataset.tache;
+    // Point de départ des effets : le bout droit de la ligne (là où est la barre de vie)
+    const r = rail.getBoundingClientRect();
+    const origine = { x: r.right - 40, y: r.top + r.height / 2 };
     if (depasse && dx > 0) {
       // Fait : la ligne file vers la droite, puis la liste se redessine
       if (animationsCompletes()) {
         ligne.style.transition = "transform .16s ease-in";
         ligne.style.transform = `translateX(${largeur}px)`;
-        setTimeout(() => marquerFait(id), 160);
-      } else marquerFait(id);
+        setTimeout(() => marquerFait(id, origine), 160);
+      } else marquerFait(id, origine);
     } else if (depasse && dx < 0) {
       remettre();
       ouvrirTard(id);
+      origineTard = origine;
     } else remettre();
   };
   const annulerDoigt = ev => { if (ev.pointerId !== doigt) return; finir(); if (sens === "h") remettre(); };
@@ -816,7 +1013,7 @@ $("btn-export").addEventListener("click", async () => {
       .sort((a, b) => rang(a.piece) - rang(b.piece) || a.nom.localeCompare(b.nom, "fr"))
       .map(t => ({
         piece: trouverPiece(t.piece).id === "?" ? "" : trouverPiece(t.piece).nom,
-        tache: t.nom, freq: t.freq,
+        tache: t.nom, freq: enJours(t),
         fait: t.fait ? longue(t.fait) : "", report: t.report ? longue(t.report) : "",
         histo: t.histo.map(longue).join(", ")
       }));
@@ -849,6 +1046,16 @@ function lireDate(texte) {
   const d = t ? new Date(t) : null; // ex. date au format anglais renvoyée par Excel
   if (d && !isNaN(d)) return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   return null;
+}
+
+// Lit une fréquence écrite dans Excel : « 3 j », « 2 sem. », « 1 mois », ou juste « 14 » (= jours,
+// comme dans les fichiers de la v0.1). Renvoie { freq, unite }.
+function lireFreq(texte) {
+  const m = String(texte || "").trim().toLowerCase().match(/^(\d+)\s*([a-zé]*)/);
+  const nb = m ? parseInt(m[1], 10) : 7;
+  const mot = m ? m[2] : "";
+  const unite = mot.startsWith("s") ? "sem" : mot.startsWith("m") ? "mois" : "j";
+  return convertirFreq(Math.min(MAX_FREQ[unite], Math.max(1, nb || 1)), unite);
 }
 
 $("btn-import").addEventListener("click", () => $("fichier-import").click());
@@ -890,7 +1097,7 @@ $("fichier-import").addEventListener("change", async e => {
       taches.push({
         id: (etat.taches.find(t => memeNom(t.nom, l["Tâche"])) || {}).id || nouvelId(),
         nom: l["Tâche"], piece: trouverOuCreer(l["Pièce"]),
-        freq: Math.min(365, Math.max(1, parseInt(l["Tous les (jours)"], 10) || 7)),
+        ...lireFreq(l["Tous les"] || l["Tous les (jours)"]),
         fait, report: lireDate(l["Repoussée au"]),
         histo: [...new Set(histo)].sort().reverse().slice(0, 30)
       });

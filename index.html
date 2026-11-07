@@ -67,6 +67,8 @@
     <span class="jauge-barre"><i id="jauge-remplie"></i></span>
     <span id="jauge-pct" class="mono"></span>
   </div>
+  <!-- Une mini-barre par pièce, sur 2 colonnes -->
+  <div id="barres-pieces" class="barres-pieces"></div>
   <div class="onglets">
     <button data-vue="afaire">À faire</button>
     <button data-vue="pieces">Pièces</button>
@@ -89,6 +91,13 @@
 
   <h2 class="section"><span>Ressenti</span><span>CET APPAREIL</span></h2>
   <button class="ligne-ajout ligne-lien" data-aller="theme"><span class="nom">Thème</span><span id="theme-actuel" class="valeur"></span><svg class="ic"><use href="icones/tabler.svg#chevron-right"></use></svg></button>
+  <div class="ligne-choix">
+    <span class="nom">Vue Pièces</span>
+    <div id="choix-colonnes" class="segments">
+      <button data-colonnes-choix="liste">Liste</button>
+      <button data-colonnes-choix="2col">2 col.</button>
+    </div>
+  </div>
   <div class="ligne-choix">
     <span class="nom">Animations</span>
     <div id="choix-animations" class="segments">
@@ -197,13 +206,17 @@
     <div class="ligne-fenetre"><span class="etiquette-champ">Tous les</span>
       <div class="compteur-qte">
         <button type="button" class="btn-icone" data-freq="-1" aria-label="Moins"><svg class="ic"><use href="icones/tabler.svg#minus"></use></svg></button>
-        <span id="ft-freq">7</span><span>j</span>
+        <span id="ft-freq">1</span>
         <button type="button" class="btn-icone" data-freq="1" aria-label="Plus"><svg class="ic"><use href="icones/tabler.svg#plus"></use></svg></button>
+      </div>
+      <!-- Unité : jours, semaines ou mois -->
+      <div class="segments">
+        <button type="button" data-unite="j">j</button><button type="button" data-unite="sem">sem.</button><button type="button" data-unite="mois">mois</button>
       </div>
     </div>
     <div class="ligne-fenetre"><span class="etiquette-champ"></span>
       <div class="segments segments-libres" id="ft-freq-rapide">
-        <button type="button" data-freq-fixe="1">1 j</button><button type="button" data-freq-fixe="3">3 j</button><button type="button" data-freq-fixe="7">1 sem.</button><button type="button" data-freq-fixe="14">2 sem.</button><button type="button" data-freq-fixe="30">1 mois</button>
+        <button type="button" data-freq-fixe="1" data-unite-fixe="j">1 j</button><button type="button" data-freq-fixe="3" data-unite-fixe="j">3 j</button><button type="button" data-freq-fixe="1" data-unite-fixe="sem">1 sem.</button><button type="button" data-freq-fixe="2" data-unite-fixe="sem">2 sem.</button><button type="button" data-freq-fixe="1" data-unite-fixe="mois">1 mois</button>
       </div>
     </div>
     <div class="ligne-fenetre"><span class="etiquette-champ">Dernière fois</span><input id="ft-fait" type="date" aria-label="Dernière fois faite"></div>
@@ -220,6 +233,10 @@
   <button id="toast-annuler">Annuler</button>
 </div>
 
+<!-- Calque des effets (confettis, « +3 % » qui s'envole, bannière 100 %) : ne bloque jamais les doigts -->
+<div id="effets" class="effets" aria-hidden="true"></div>
+
+<script src="champs-mobile.js" defer></script>
 <script type="module" src="app.js"></script>
 </body>
 </html>
