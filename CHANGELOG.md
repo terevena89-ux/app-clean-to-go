@@ -1,5 +1,11 @@
 # Journal des nouveautés — Clean to go
 
+## v1.1.0 — 2026-11-07
+Encore plus « jeu ».
+- Réglages → Animations : Simples / Complètes / **Balatro** (nouveau, par défaut sur un nouvel appareil). En Balatro : les cadres flottent doucement, penchent en 3D sous le doigt, sont distribués comme des cartes à l'ouverture et se retournent quand on change d'onglet, un reflet les traverse de temps en temps (grand reflet quand une pièce passe à 100 %). La ligne glissée penche selon la vitesse du doigt, les retards tremblent et leur barre clignote, tout rebondit au toucher.
+- Appui long sur le bandeau d'une pièce (vue Pièces) : on attrape le cadre et on le déplace pour changer l'ordre des pièces ; il se balance selon la vitesse, les autres s'écartent. Marche aussi en 2 colonnes.
+- Réglages → Vieil écran : Aucun / Léger / Fort (lignes de balayage et bords assombris façon télé cathodique).
+
 ## v1.0.0 — 2026-11-07
 Première version définitive.
 - Conversion automatique des fréquences « rondes » : 30, 60, 90 j → 1, 2, 3 mois ; 7, 14, 21 j → 1, 2, 3 sem. ; 15 j → 2 sem.

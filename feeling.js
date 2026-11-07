@@ -9,7 +9,7 @@ const CLE = "clean-feeling";
 
 // Par défaut : vibration et son activés (v0.2 : côté jeu), thème auto, animations complètes,
 // vue « À faire », Pièces en liste, tâches propres repliées
-let reglages = { vibration: true, son: true, theme: "auto", animations: "completes", vue: "afaire", colonnes: "liste", propres: "fermees" };
+let reglages = { vibration: true, son: true, theme: "auto", animations: "balatro", ecran: "leger", vue: "afaire", colonnes: "liste", propres: "fermees" };
 try { Object.assign(reglages, JSON.parse(localStorage.getItem(CLE)) || {}); } catch (e) { /* on garde les valeurs par défaut */ }
 
 export function lireReglage(nom) { return reglages[nom]; }
@@ -23,7 +23,10 @@ export const peutVibrer = typeof navigator !== "undefined" && "vibrate" in navig
 
 // L'utilisateur a-t-il demandé « moins d'animations » dans les réglages du tel ?
 const moinsAnimations = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+// Trois niveaux : « simples » (presque rien), « completes » (effets quand on fait une tâche),
+// « balatro » (en plus : cadres qui flottent, penchent, brillent, arrivent comme des cartes...)
 export function animationsCompletes() { return reglages.animations !== "simples" && !moinsAnimations(); }
+export function modeBalatro() { return reglages.animations === "balatro" && !moinsAnimations(); }
 
 // ---------- Vibration ----------
 // Un nombre = durée en millisecondes ; une liste = vibre, pause, vibre...

@@ -101,8 +101,17 @@
   <div class="ligne-choix">
     <span class="nom">Animations</span>
     <div id="choix-animations" class="segments">
-      <button data-anim-choix="completes">Complètes</button>
       <button data-anim-choix="simples">Simples</button>
+      <button data-anim-choix="completes">Complètes</button>
+      <button data-anim-choix="balatro">Balatro</button>
+    </div>
+  </div>
+  <div class="ligne-choix">
+    <span class="nom">Vieil écran</span>
+    <div id="choix-ecran" class="segments">
+      <button data-ecran-choix="aucun">Aucun</button>
+      <button data-ecran-choix="leger">Léger</button>
+      <button data-ecran-choix="fort">Fort</button>
     </div>
   </div>
   <div id="reglages-feeling">
@@ -235,6 +244,8 @@
 
 <!-- Calque des effets (confettis, « +3 % » qui s'envole, bannière 100 %) : ne bloque jamais les doigts -->
 <div id="effets" class="effets" aria-hidden="true"></div>
+<!-- Effet « vieil écran » (lignes de balayage + bords assombris), réglé dans Réglages -->
+<div class="crt" aria-hidden="true"></div>
 
 <script src="champs-mobile.js" defer></script>
 <script type="module" src="app.js"></script>

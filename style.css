@@ -473,3 +473,64 @@ input[type=date] { height: 36px; font: 700 13px var(--mono); }
 #jauge-pct { display: inline-block; }
 #jauge-pct.tangue { animation: tangue 2.6s ease-in-out infinite; }
 :root[data-anim="simples"] #jauge-pct.tangue { animation: none; }
+
+/* =========================================================
+   v1.1.0 : mode « Balatro » (Réglages → Animations → Balatro)
+   Les cadres se comportent comme des cartes : ils flottent, penchent
+   sous le doigt, brillent, arrivent comme une donne.
+   (On utilise les propriétés « translate » et « rotate » séparées pour
+   flotter, et « transform » pour pencher / déplacer : les deux s'additionnent.)
+   ========================================================= */
+
+/* Cadres qui flottent doucement, chacun avec son propre décalage (--i) */
+@keyframes flotte {
+  0%, 100% { translate: 0 0; rotate: -.5deg; }
+  50% { translate: 0 -3px; rotate: .5deg; }
+}
+:root[data-anim="balatro"] .boite { animation: flotte 3.4s ease-in-out infinite; animation-delay: calc(var(--i, 0) * -.85s); transition: transform .12s ease-out; }
+
+/* Reflet : un éclat de lumière traverse le cadre de temps en temps */
+@keyframes reflet { 0%, 82% { transform: translateX(-160%) skewX(-20deg); } 100% { transform: translateX(320%) skewX(-20deg); } }
+:root[data-anim="balatro"] .boite { position: relative; }
+:root[data-anim="balatro"] .boite::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 35%; z-index: 2; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .35), transparent);
+  animation: reflet 7s ease-in-out infinite; animation-delay: calc(var(--i, 0) * 1.3s);
+}
+/* Pièce passée à 100 % : un grand reflet immédiat */
+:root[data-anim="balatro"] .boite.brille::after { animation: reflet .9s ease-out 1; background: linear-gradient(90deg, transparent, rgba(255, 246, 200, .8), transparent); }
+
+/* Arrivée des cadres : distribués comme des cartes (ouverture) ou retournés (changement d'onglet) */
+@keyframes distribue { from { transform: translate(140px, -90px) rotate(22deg); opacity: 0; } 70% { transform: translate(-3px, 2px) rotate(-2deg); opacity: 1; } to { transform: none; } }
+@keyframes retourne { from { transform: perspective(700px) rotateY(90deg); opacity: .3; } 70% { transform: perspective(700px) rotateY(-8deg); } to { transform: none; } }
+:root[data-anim="balatro"] .boite.distribue { animation: distribue .45s cubic-bezier(.3,1.4,.5,1) backwards, flotte 3.4s ease-in-out infinite; animation-delay: calc(var(--i, 0) * .08s), calc(var(--i, 0) * -.85s); }
+:root[data-anim="balatro"] .boite.retourne { animation: retourne .4s ease-out backwards, flotte 3.4s ease-in-out infinite; animation-delay: calc(var(--i, 0) * .06s), calc(var(--i, 0) * -.85s); }
+
+/* Cadre attrapé (appui long sur le bandeau) : soulevé, grosse ombre, ne flotte plus */
+.boite.attrape { animation: none !important; position: relative; z-index: 6; box-shadow: 8px 10px 0 var(--ombre-c); cursor: grabbing; }
+.titre-section { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+
+/* Retards qui palpitent : « +3 j » qui tremble, barre vide qui clignote */
+@keyframes tremble { 0%, 86%, 100% { transform: translate(0); } 89% { transform: translate(-1.5px, 0) rotate(-3deg); } 93% { transform: translate(1.5px, 0) rotate(3deg); } 96% { transform: translate(-1px, 0); } }
+@keyframes clignote { 0%, 100% { border-color: var(--ligne); } 50% { border-color: var(--danger); } }
+:root[data-anim="balatro"] .en-retard .jours { display: inline-block; animation: tremble 2.2s ease-in-out infinite; }
+:root[data-anim="balatro"] .en-retard .vie { animation: clignote 1.6s ease-in-out infinite; }
+
+/* Rebond au toucher : ça s'écrase, puis ça rebondit en relâchant */
+:root[data-anim="balatro"] :is(.tache, .btn-icone, .onglets button, .ligne-propres, .ligne-ajout, .segments button, .interrupteur) {
+  transition: scale .25s cubic-bezier(.3, 1.8, .5, 1);
+}
+:root[data-anim="balatro"] :is(.tache, .btn-icone, .onglets button, .ligne-propres, .ligne-ajout, .segments button, .interrupteur):active {
+  scale: .95; transition: scale .06s;
+}
+
+/* Vieil écran : lignes de balayage + bords assombris, par-dessus tout (les doigts passent à travers) */
+.crt { position: fixed; inset: 0; z-index: 60; pointer-events: none; display: none; }
+:root[data-crt="leger"] .crt, :root[data-crt="fort"] .crt { display: block; }
+.crt {
+  background:
+    radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, var(--crt-bord, .18))),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, var(--crt-lignes, .06)) 0 1px, transparent 1px 3px);
+}
+:root[data-crt="fort"] .crt { --crt-bord: .38; --crt-lignes: .16; animation: scintille .12s steps(2) infinite; }
+@keyframes scintille { 0%, 100% { opacity: 1; } 50% { opacity: .85; } }

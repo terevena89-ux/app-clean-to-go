@@ -4,7 +4,7 @@
 // même sans réseau. (Les données, elles, sont gérées par Firebase.)
 // À CHAQUE NOUVELLE VERSION : changer le numéro ci-dessous.
 // =========================================================
-const CACHE = "clean-to-go-v1.0.0";
+const CACHE = "clean-to-go-v1.1.0";
 
 // Fichiers de l'appli à garder dès l'installation
 const FICHIERS = [

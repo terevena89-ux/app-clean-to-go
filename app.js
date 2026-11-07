@@ -24,12 +24,12 @@ import { firebaseConfig } from "./firebase-config.js";
 import { chargerExcelJS, ajouterFeuille, telechargerClasseur, lireClasseur, lireFeuille } from "./excel-style.js";
 import {
   lireReglage, changerReglage, peutVibrer, animationsCompletes,
-  tacheFaite, tacheRepoussee, seuilAtteint, attrape, lache, cran, essai, bip, pieceComplete
+  tacheFaite, tacheRepoussee, seuilAtteint, attrape, lache, cran, essai, bip, pieceComplete, modeBalatro
 } from "./feeling.js";
 
 // ---------- 1. Réglages de base et données ----------
 
-const VERSION = "v1.0.0";
+const VERSION = "v1.1.0";
 const NOM_APPLI = "app-clean-to-go";   // nom du dossier dans Firestore et des fichiers Excel
 
 // Les 8 couleurs possibles pour une pièce (mêmes que dans Stuff to go)
@@ -273,7 +273,10 @@ function router() {
   if (h === "reglages") { afficherReglages(); montrer("reglages"); }
   else if (h === "theme") { afficherReglages(); montrer("theme"); }
   else if (h === "pieces") { afficherPieces(); montrer("pieces"); }
-  else { afficherAccueil(); montrer("accueil"); }
+  else {
+    if (ecranActuel !== "accueil") arrivee = "distribue"; // on revient sur l'écran principal : on redistribue
+    afficherAccueil(); montrer("accueil");
+  }
   // Une fiche ouverte se met à jour (ex. modification arrivée de l'autre appareil)
   if (ficheOuverte) afficherFiche();
 }
@@ -326,7 +329,7 @@ function ligneTache(t, avecCarre, grise = false) {
   }
   const r = reste(t);
   const anim = dernierFait === t.id && animationsCompletes() ? " vient-fait" : "";
-  return `<div class="glissiere${anim}${grise ? " propre" : ""}" data-tache="${t.id}">
+  return `<div class="glissiere${anim}${grise ? " propre" : ""}${r < 0 ? " en-retard" : ""}" data-tache="${t.id}">
     <div class="derriere derriere-fait">${icone("check")}Fait</div>
     <div class="derriere derriere-tard">Plus tard${icone("clock")}</div>
     <div class="tache">${carre}<span class="nom">${echapper(t.nom)}</span>
@@ -383,7 +386,7 @@ function afficherAccueil() {
   if (vue === "afaire") {
     // Une seule boîte : toutes les tâches, la plus urgente en haut
     const liste = etat.taches.filter(garde).sort(parUrgence);
-    html = `<div class="boite">${lignes(liste, true)}
+    html = `<div class="boite" style="--i:0">${lignes(liste, true)}
       ${!liste.length && !modeRanger ? `<p class="vide">${q ? "Rien trouvé" : "Aucune tâche"}</p>` : ""}${ajout("")}</div>`;
   } else {
     // Une boîte par pièce (avec son propre %), puis les tâches sans pièce s'il y en a
@@ -391,14 +394,22 @@ function afficherAccueil() {
       p, taches: etat.taches.filter(t => (trouverPiece(t.piece).id === p.id) && garde(t)).sort(parUrgence),
       toutes: etat.taches.filter(t => trouverPiece(t.piece).id === p.id)
     })).filter(g => g.p.id === "?" ? g.taches.length : (!q || g.taches.length));
-    html = groupes.map(g => `<div class="boite" data-boite="${g.p.id}">
+    // --i = numéro du cadre : décale ses mouvements (flotter, reflet, distribution) par rapport aux voisins
+    html = groupes.map((g, i) => `<div class="boite" data-boite="${g.p.id}" style="--i:${i}">
       <h2 class="titre-section coul-${g.p.couleur}"><span class="nom">${echapper(g.p.nom)}</span><span>${g.toutes.length ? score(g.toutes) + " %" : ""}</span></h2>
       ${lignes(g.taches, false)}${g.p.id === "?" ? "" : ajout(g.p.id)}</div>`).join("")
       || `<p class="vide">Rien trouvé</p>`;
   }
   $("liste-taches").innerHTML = html;
   dernierFait = null;
+  // Arrivée des cadres façon cartes (mode Balatro) : distribués à l'ouverture, retournés au changement d'onglet
+  if (arrivee && modeBalatro()) {
+    document.querySelectorAll("#liste-taches .boite").forEach(b => b.classList.add(arrivee));
+  }
+  arrivee = null;
 }
+// Prochaine arrivée de cadres à animer : "distribue" (ouverture) ou "retourne" (onglet), ou rien
+let arrivee = "distribue";
 
 // --- Réglages ---
 const NOMS_THEMES = { auto: "Auto", clair: "Clair", sombre: "Sombre" };
@@ -410,6 +421,7 @@ function afficherReglages() {
   document.querySelectorAll("[data-feeling]").forEach(b => b.setAttribute("aria-pressed", lireReglage(b.dataset.feeling)));
   document.querySelectorAll("[data-theme-choix]").forEach(b => b.setAttribute("aria-pressed", b.dataset.themeChoix === lireReglage("theme")));
   document.querySelectorAll("[data-anim-choix]").forEach(b => b.setAttribute("aria-pressed", b.dataset.animChoix === lireReglage("animations")));
+  document.querySelectorAll("[data-ecran-choix]").forEach(b => b.setAttribute("aria-pressed", b.dataset.ecranChoix === (lireReglage("ecran") || "aucun")));
   document.querySelectorAll("[data-colonnes-choix]").forEach(b => b.setAttribute("aria-pressed", b.dataset.colonnesChoix === (lireReglage("colonnes") || "liste")));
 }
 
@@ -581,7 +593,14 @@ function feteFait(t, origine, avant) {
     saute(document.querySelector(`[data-mini="${trouverPiece(t.piece).id}"]`), 1.15);
     saute(document.querySelector(`[data-boite="${trouverPiece(t.piece).id}"] .ligne-propres`) || document.querySelector(".ligne-propres"), 1.08);
   }, 500);
-  if (piece === 100 && avant.piece < 100) setTimeout(() => banniere(`${trouverPiece(t.piece).nom} 100 %`), 1000);
+  if (piece === 100 && avant.piece < 100) {
+    setTimeout(() => banniere(`${trouverPiece(t.piece).nom} 100 %`), 1000);
+    // Mode Balatro : le cadre de la pièce brille d'un grand reflet
+    setTimeout(() => {
+      const b = document.querySelector(`[data-boite="${trouverPiece(t.piece).id}"]`);
+      if (b && modeBalatro()) { b.classList.remove("brille"); void b.offsetWidth; b.classList.add("brille"); }
+    }, 1100);
+  }
   else if (maison === 100 && avant.maison < 100) setTimeout(() => banniere("Maison 100 %"), 1000);
 }
 
@@ -610,6 +629,7 @@ function reprendre() {
 
 // --- Écran principal ---
 document.querySelectorAll("[data-vue]").forEach(b => b.addEventListener("click", () => {
+  if (lireReglage("vue") !== b.dataset.vue) arrivee = "retourne";
   changerReglage("vue", b.dataset.vue);
   afficherAccueil();
 }));
@@ -777,8 +797,20 @@ $("reglages-feeling").addEventListener("click", e => {
   afficherReglages();
   essai(); // on sent / entend tout de suite le résultat
 });
-function appliquerAnimations() { document.documentElement.dataset.anim = lireReglage("animations"); }
+// Les attributs posés sur la page (data-anim, data-crt) servent au CSS pour allumer / couper les effets
+function appliquerAnimations() {
+  document.documentElement.dataset.anim = lireReglage("animations");
+  document.documentElement.dataset.crt = lireReglage("ecran") || "aucun";
+}
 appliquerAnimations();
+// Effet « vieil écran » (lignes de balayage + bords assombris) : Aucun / Léger / Fort
+$("choix-ecran").addEventListener("click", e => {
+  const b = e.target.closest("[data-ecran-choix]");
+  if (!b) return;
+  changerReglage("ecran", b.dataset.ecranChoix);
+  appliquerAnimations();
+  afficherReglages();
+});
 // Vue Pièces : en liste ou en 2 colonnes (réglage de cet appareil)
 $("choix-colonnes").addEventListener("click", e => {
   const b = e.target.closest("[data-colonnes-choix]");
@@ -872,7 +904,12 @@ $("liste-taches").addEventListener("pointerdown", e => {
       else return;
     }
     ev.preventDefault();
-    ligne.style.transform = `translateX(${dx}px)`;
+    // Mode Balatro : la ligne penche selon la vitesse du doigt, comme une carte qu'on tire
+    if (modeBalatro()) {
+      penche = penche * 0.7 + Math.max(-7, Math.min(7, (dx - dernierDx) * 0.5)) * 0.3;
+      dernierDx = dx;
+      ligne.style.transform = `translateX(${dx}px) rotate(${penche}deg)`;
+    } else ligne.style.transform = `translateX(${dx}px)`;
     fondFait.style.visibility = dx > 0 ? "visible" : "hidden";
     fondTard.style.visibility = dx < 0 ? "visible" : "hidden";
     const d = Math.abs(dx) >= seuil;
@@ -881,7 +918,7 @@ $("liste-taches").addEventListener("pointerdown", e => {
     const c = Math.floor(Math.abs(dx) / 30);
     if (c !== cranActuel) { cranActuel = c; if (!depasse) cran(); }
   };
-  let cranActuel = 0;
+  let cranActuel = 0, penche = 0, dernierDx = 0;
   const remettre = () => {
     ligne.style.transition = "transform .18s ease-out";
     ligne.style.transform = "";
@@ -921,6 +958,137 @@ $("liste-taches").addEventListener("pointerdown", e => {
   document.addEventListener("pointerup", lacherDoigt);
   document.addEventListener("pointercancel", annulerDoigt);
 });
+
+// c) Mode Balatro : le cadre touché penche en 3D vers le doigt, comme une carte qu'on tient.
+// (À la souris sur PC, il penche dès qu'on passe dessus.)
+let cadrePenche = null;
+function pencherCadre(b, x, y) {
+  const r = b.getBoundingClientRect();
+  const dx = (x - r.left) / r.width - 0.5, dy = (y - r.top) / r.height - 0.5;
+  b.style.transform = `perspective(700px) rotateY(${dx * 10}deg) rotateX(${-dy * 10}deg) scale(1.015)`;
+}
+function redresserCadre() {
+  if (!cadrePenche) return;
+  cadrePenche.style.transform = "";
+  cadrePenche = null;
+}
+$("liste-taches").addEventListener("pointerdown", e => {
+  if (!modeBalatro() || cadreAttrape) return;
+  const b = e.target.closest(".boite");
+  if (!b) return;
+  cadrePenche = b;
+  pencherCadre(b, e.clientX, e.clientY);
+});
+$("liste-taches").addEventListener("pointermove", e => {
+  if (!modeBalatro() || cadreAttrape) return;
+  const b = e.target.closest(".boite");
+  if (e.pointerType === "mouse" && b !== cadrePenche) { redresserCadre(); if (b) cadrePenche = b; }
+  if (cadrePenche && (e.pointerType === "mouse" || e.buttons)) pencherCadre(cadrePenche, e.clientX, e.clientY);
+});
+["pointerup", "pointercancel", "pointerleave"].forEach(t => $("liste-taches").addEventListener(t, e => {
+  if (t === "pointerleave" || e.pointerType !== "mouse") redresserCadre();
+}));
+
+// d) Appui long sur le bandeau d'une pièce (vue Pièces) : on attrape le cadre entier et on le
+// déplace pour changer l'ordre des pièces. Il suit le doigt en se balançant selon la vitesse,
+// les autres cadres s'écartent en douceur. Marche aussi en 2 colonnes.
+let cadreAttrape = null;
+$("liste-taches").addEventListener("pointerdown", e => {
+  const bandeau = e.target.closest(".titre-section");
+  const boite = bandeau && bandeau.closest(".boite[data-boite]");
+  if (!boite || boite.dataset.boite === "?" || lireReglage("vue") !== "pieces") return;
+  const doigt = e.pointerId, x0 = e.clientX, y0 = e.clientY;
+  // On attend 400 ms sans bouger : si le doigt bouge avant, c'est qu'on fait défiler la page
+  const attente = setTimeout(() => attraper(boite, doigt, x0, y0), 400);
+  const annuler = ev => {
+    if (ev.pointerId !== doigt) return;
+    if (ev.type === "pointermove" && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 8) return;
+    clearTimeout(attente);
+    document.removeEventListener("pointermove", annuler);
+    document.removeEventListener("pointerup", annuler);
+    document.removeEventListener("pointercancel", annuler);
+  };
+  document.addEventListener("pointermove", annuler);
+  document.addEventListener("pointerup", annuler);
+  document.addEventListener("pointercancel", annuler);
+});
+// Pendant qu'on tient un cadre, on empêche la page de défiler sous le doigt
+document.addEventListener("touchmove", e => { if (cadreAttrape) e.preventDefault(); }, { passive: false });
+document.addEventListener("contextmenu", e => { if (cadreAttrape || e.target.closest(".titre-section")) e.preventDefault(); });
+
+function attraper(boite, doigt, x0, y0) {
+  redresserCadre();
+  cadreAttrape = boite;
+  attrape();
+  const conteneur = $("liste-taches");
+  const depart = boite.getBoundingClientRect();
+  const prisA = { x: x0 - depart.left, y: y0 - depart.top }; // où le doigt tient le cadre
+  let dernier = { x: x0, y: y0 }, balance = 0, dx = 0, dy = 0;
+  boite.classList.add("attrape");
+  boite.style.transition = "none"; // pas de retard : le cadre colle au doigt
+  // Place le cadre pile sous le doigt (sa « vraie » place = sa position sans le décalage actuel)
+  const suivre = () => {
+    const r = boite.getBoundingClientRect();
+    const vraie = { x: r.left - dx, y: r.top - dy };
+    dx = dernier.x - prisA.x - vraie.x;
+    dy = dernier.y - prisA.y - vraie.y;
+    boite.style.transform = `translate(${dx}px, ${dy}px) rotate(${balance}deg) scale(1.05)`;
+  };
+  suivre();
+  const voisins = () => [...conteneur.querySelectorAll(".boite[data-boite]")].filter(b => b !== boite);
+  const deplacer = action => {
+    cran();
+    const avant = new Map(voisins().map(b => { const r = b.getBoundingClientRect(); return [b, { x: r.left, y: r.top }]; }));
+    action();
+    for (const [b, p] of avant) {
+      const r = b.getBoundingClientRect();
+      if (p.x !== r.left || p.y !== r.top)
+        b.animate([{ transform: `translate(${p.x - r.left}px, ${p.y - r.top}px)` }, { transform: "none" }], { duration: 180, easing: "ease-out" });
+    }
+    suivre();
+  };
+  const bouger = ev => {
+    if (ev.pointerId !== doigt) return;
+    ev.preventDefault();
+    // Balancement : le cadre penche dans le sens où il va, puis se redresse
+    balance = balance * 0.75 + Math.max(-12, Math.min(12, (ev.clientX - dernier.x) * 0.8)) * 0.25;
+    dernier = { x: ev.clientX, y: ev.clientY };
+    if (ev.clientY < 80) window.scrollBy(0, -14);
+    else if (ev.clientY > innerHeight - 80) window.scrollBy(0, 14);
+    suivre();
+    const sous = document.elementFromPoint(ev.clientX, ev.clientY);
+    const cible = sous && sous.closest(".boite[data-boite]");
+    if (!cible || cible === boite || cible.dataset.boite === "?" || !conteneur.contains(cible)) return;
+    const r = cible.getBoundingClientRect();
+    const apres = ev.clientY > r.top + r.height / 2;
+    if (apres && cible.nextElementSibling !== boite) deplacer(() => cible.after(boite));
+    else if (!apres && cible.previousElementSibling !== boite) deplacer(() => cible.before(boite));
+  };
+  const lacher = ev => {
+    if (ev.pointerId !== doigt) return;
+    document.removeEventListener("pointermove", bouger);
+    document.removeEventListener("pointerup", lacher);
+    document.removeEventListener("pointercancel", lacher);
+    lache();
+    ignorerClic = true;
+    setTimeout(() => { ignorerClic = false; }, 60);
+    // Le cadre se pose : il revient en douceur à sa nouvelle place, puis on enregistre l'ordre
+    boite.style.transition = "transform .2s cubic-bezier(.3,1.5,.5,1)";
+    boite.style.transform = "";
+    setTimeout(() => {
+      boite.classList.remove("attrape");
+      boite.style.transition = "";
+      cadreAttrape = null;
+      const ordre = [...conteneur.querySelectorAll(".boite[data-boite]")].map(b => b.dataset.boite);
+      etat.pieces.sort((a, b) => ordre.indexOf(a.id) - ordre.indexOf(b.id));
+      sauver();
+      afficherAccueil();
+    }, 210);
+  };
+  document.addEventListener("pointermove", bouger, { passive: false });
+  document.addEventListener("pointerup", lacher);
+  document.addEventListener("pointercancel", lacher);
+}
 
 // b) Glisser-déposer pour réordonner (repris de Stuff to go) : la ligne attrapée par
 // sa poignée suit le doigt pixel par pixel, les autres s'écartent en douceur.
