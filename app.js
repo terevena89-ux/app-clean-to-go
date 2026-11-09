@@ -29,7 +29,7 @@ import {
 
 // ---------- 1. Réglages de base et données ----------
 
-const VERSION = "v1.1.0";
+const VERSION = "v1.1.1";
 const NOM_APPLI = "app-clean-to-go";   // nom du dossier dans Firestore et des fichiers Excel
 
 // Les 8 couleurs possibles pour une pièce (mêmes que dans Stuff to go)
@@ -53,7 +53,7 @@ const PIECES_DEPART = [
   { id: "chambre", nom: "Chambre", couleur: "violet" }
 ];
 let etat = etatVide();
-function etatVide() { return { pieces: structuredClone(PIECES_DEPART), taches: [], pause: null }; }
+function etatVide() { return { pieces: structuredClone(PIECES_DEPART), taches: [], pause: null, idees: "" }; }
 
 // Remet d'aplomb des données venues d'ailleurs (Firebase, ancienne version, fichier Excel...)
 function normaliser(d) {
@@ -67,7 +67,8 @@ function normaliser(d) {
       fait: dateOk(t.fait), report: dateOk(t.report),
       histo: tableau(t.histo).filter(dateOk)
     })),
-    pause: dateOk(d.pause)
+    pause: dateOk(d.pause),
+    idees: typeof d.idees === "string" ? d.idees : ""   // Réglages › Notes (bloc-notes d'idées)
   };
 }
 
@@ -195,6 +196,7 @@ function demarrerFirebase() {
       const json = enTexte(recu);
       if (json === dernierJSON) return; // rien de neuf (souvent : mon propre enregistrement)
       etat = recu;
+      NotesIdees.maj(etat.idees); // Réglages › Notes : un autre appareil a pu les changer
       dernierJSON = json;
       router();
     });
@@ -1311,3 +1313,9 @@ document.addEventListener("visibilitychange", () => { if (document.visibilitySta
 
 $("version").textContent = VERSION;
 if (MODE_DEMO) demarrerDemo(); else demarrerFirebase();
+
+// Réglages › Notes : bloc-notes libre pour mes idées d'amélioration (module notes-idees.js).
+// Enregistré avec le reste des données, donc synchronisé entre le téléphone et le PC.
+$("ouvrir-notes").addEventListener("click", () => {
+  NotesIdees.ouvrir(etat.idees, texte => { etat.idees = texte; sauver(); });
+});

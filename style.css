@@ -410,7 +410,7 @@ input[type=date] { height: 36px; font: 700 13px var(--mono); }
 
 /* Petit panneau des listes déroulantes sur téléphone (module champs-mobile.js) :
    il reprend les couleurs de l'appli, et suit donc le thème clair / sombre. */
-.pm-voile { --pm-fond: var(--carte); --pm-texte: var(--encre); --pm-discret: var(--discret); --pm-trait: var(--fin); --pm-accent: var(--encre); --pm-champ: var(--fond); --pm-police: var(--texte); }
+.pm-voile, .ni-ecran { --pm-fond: var(--carte); --pm-texte: var(--encre); --pm-discret: var(--discret); --pm-trait: var(--fin); --pm-accent: var(--encre); --pm-champ: var(--fond); --pm-police: var(--texte); }
 
 /* ---------- v0.2.0 : barres par pièce ---------- */
 /* Une mini-barre par pièce, sur 2 colonnes, juste sous la jauge maison */

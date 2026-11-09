@@ -1,5 +1,8 @@
 # Journal des nouveautés — Clean to go
 
+## v1.1.1 — 2026-11-09
+- Réglages › Notes : bloc-notes libre pour noter mes idées d'amélioration, synchronisé entre le téléphone et le PC, avec un bouton Copier.
+
 ## v1.1.0 — 2026-11-07
 Encore plus « jeu ».
 - Réglages → Animations : Simples / Complètes / **Balatro** (nouveau, par défaut sur un nouvel appareil). En Balatro : les cadres flottent doucement, penchent en 3D sous le doigt, sont distribués comme des cartes à l'ouverture et se retournent quand on change d'onglet, un reflet les traverse de temps en temps (grand reflet quand une pièce passe à 100 %). La ligne glissée penche selon la vitesse du doigt, les retards tremblent et leur barre clignote, tout rebondit au toucher.
